@@ -5,7 +5,7 @@ import threading
 import flask
 from flask_helpers import routing
 
-from netmet import collector
+from netmet.client import collector
 from netmet.utils import status
 
 
