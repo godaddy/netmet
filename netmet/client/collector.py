@@ -50,7 +50,18 @@ class Collector(object):
     def process_results(self):
         while self.queue or self.running:
             while self.queue:
-                print(self.queue.popleft())
+                # standalone mode, CLI/file
+                # netmet server
+                item = self.queue.popleft()
+
+                if not self.netmet_server:
+                    # This should be used only for isolated testing purpouse
+                    # it makes possible to test client part without server part
+                    print(item)
+                else:
+                    # requests netmet server
+                    pass
+
             time.sleep(0.5)
 
     def start(self):
