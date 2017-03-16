@@ -7,3 +7,5 @@ future==0.16.0
 futurist==0.22.0
 elasticsearch==5.0.1
 cachetools==2.0.0
+monotonic
+enum34
