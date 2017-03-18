@@ -33,46 +33,52 @@ def get(elastic=None):
     return _DB
 
 
+def init(elastic):
+    get(elastic=elastic)
+
+
 def is_inited(elastic):
     return bool(_DB)
 
 
 class DB(object):
 
+    _CLIENT_PROPS = {
+        "host": {"type": "keyword"},
+        "ip": {"type": "ip"},
+        "mac": {"type": "keyword"},
+        "az": {"type": "keyword"},
+        "dc": {"type": "keyword"},
+        "registered_at": {"type": "date"}
+    }
+
+    _LATENCY_TYPE = {
+        "type": "nested",
+        "properties": {
+            "min": {"type": "float"},
+            "max": {"type": "float"},
+            "avg": {"type": "float"}
+        }
+    }
+
     _CATALOG = {
         "settings": {
             "index": {
                 "number_of_shards": 3,
                 "number_of_replicas": 3
-            }
+            },
+            "index.mapper.dynamic": False
         },
         "mappings": {
             "clients": {
+                "properties": _CLIENT_PROPS
+            },
+            "config": {
                 "properties": {
-                    "host": {
-                        "type": "keyword"
-                    },
-                    "mac": {
-                        "type": "keyword"
-                    },
-                    "private_ip": {
-                        "type": "ip"
-                    },
-                    "az": {
-                        "type": "keyword"
-                    },
-                    "dc": {
-                        "type": "keyword"
-                    },
-                    "registered_at": {
-                        "type": "date"
-                    },
-                    "running": {
-                        "type": "boolean"
-                    },
-                    "configured": {
-                        "type": "boolean"
-                    }
+                    "timestamp": {"type": "date"},
+                    "cofig": {"type": "text"},
+                    "applied": {"type": "boolean"},
+                    "meshed": {"type": "boolean"}
                 }
             }
         }
@@ -83,108 +89,38 @@ class DB(object):
             "index": {
                 "number_of_shards": 10,
                 "number_of_replicas": 1
-            }
+            },
+            "index.mapper.dynamic": False
         },
         "mappings": {
-            "internet": {
+            "south-north": {
                 "properties": {
-                    "src": {
-                        "type": "nested",
-                        "properties": {
-                            "client_ip": {
-                                "type": "text"
-                            },
-                            "host_mac": {
-                                "type": "text"
-                            },
-                            "az": {
-                                "type": "text"
-                            },
-                            "dc": {
-                                "type": "text"
-                            }
-                        }
-                    },
-                    "dest_host": {
-                        "type": "keyword"
-                    },
-                    "az": {
-                        "type": "text"
-                    },
-                    "dc": {
-                        "type": "text"
-                    },
-                    "protocol": {
-                        "type": "text"
-                    },
-                    "timestamp": {
-                        "type": "date"
-                    },
-                    "transmitted": {
-                        "type": "integer"
-                    },
-                    "lost": {
-                        "type": "integer"
-                    },
-                    "latency": {
-                        "type": "float"
-                    },
-                    "ret_code": {
-                        "type": "integer"
-                    }
+                    "client": {"type": "nested", "properties": _CLIENT_PROPS},
+                    "dest": {"type": "keyword"},
+                    "protocol": {"type": "text"},
+                    "timestamp": {"type": "date"},
+                    "transmitted": {"type": "integer"},
+                    "lost": {"type": "integer"},
+                    "latency": _LATENCY_TYPE,
+                    "ret_code": {"type": "integer"}
                 }
             },
-            "internal": {
+            "east-west": {
                 "properties": {
-                    "protocol": {
-                        "type": "text"
-                    },
-                    "src": {
+                    "protocol": {"type": "text"},
+                    "client_src": {
                         "type": "nested",
-                        "properties": {
-                            "client_ip": {
-                                "type": "text"
-                            },
-                            "host_mac": {
-                                "type": "text"
-                            },
-                            "az": {
-                                "type": "text"
-                            },
-                            "dc": {
-                                "type": "text"
-                            }
-                        }
+                        "properties": _CLIENT_PROPS
                     },
-                    "dest": {
+                    "client_dest": {
                         "type": "nested",
-                        "properties": {
-                            "cleint_ip": {
-                                "type": "text"
-                            },
-                            "host_mac": {
-                                "type": "text"
-                            },
-                            "az": {
-                                "type": "text"
-                            },
-                            "dc": {
-                                "type": "text"
-                            }
-                        }
+                        "properties": _CLIENT_PROPS
                     },
-                    "timestamp": {
-                        "type": "date"
-                    },
-                    "transmitted": {
-                        "type": "integer"
-                    },
-                    "latency": {
-                        "type": "float"
-                    },
-                    "ret_code": {
-                        "type": "integer"
-                    }
+                    "timestamp": {"type": "date"},
+                    "transmitted": {"type": "integer"},
+                    "lost": {"type": "integer"},
+                    "latency": _LATENCY_TYPE,
+                    "ret_code": {"type": "integer"}
                 }
             }
         }
@@ -217,24 +153,67 @@ class DB(object):
                 raise exceptions.DBInitFailure(elastic=self.elastic, message=e)
             # TODO(boris-42): Check whatever shcema is the same.
 
-    def get_catalog(self):
-        return self.elastic.search(index="netmet_catalog",
-                                   doc_type="clients",
-                                   size=MAX_AMOUNT_OF_SERVERS)["hits"]["hits"]
+    def clients_get(self):
+        data = self.elastic.search(index="netmet_catalog", doc_type="clients",
+                                   size=MAX_AMOUNT_OF_SERVERS)
 
-    def set_catalog(self, catalog):
+        return [x["_source"] for x in data["hits"]["hits"]]
+
+    def clients_set(self, catalog):
         bulk_body = []
         for c in catalog:
-            bulk_body.append("{}\n")
+            bulk_body.append(json.dumps({"index": {}}))
             bulk_body.append(json.dumps(c))
-            bulk_body.append("\n")
 
         self.elastic.delete_by_query(index="netmet_catalog",
                                      doc_type="clients",
                                      body={"query": {"match_all": {}}})
 
         self.elastic.bulk(index="netmet_catalog", doc_type="clients",
-                          body="".join(bulk_body))
+                          body="\n".join(bulk_body))
+
+    def server_config_get(self, only_applied=False):
+        query = {
+            "sort": {"timestamp": {"order": "desc"}}
+        }
+        if only_applied:
+            query["query"] = {"term": {"applied": True}}
+        result = self.elastic.search(index="netmet_catalog", doc_type="config",
+                                     body=query, size=1)
+
+        hits = result["hits"]["hits"]
+        if not hits:
+            return
+
+        result = hits[0]["_source"]
+        result["config"] = json.loads(result["config"])
+        result["id"] = hits[0]["_id"]
+        return result
+
+    def server_config_add(self, config):
+        """Adds new server config."""
+        body = {
+            "config": json.dumps(config),
+            "applied": False,
+            "meshed": False,
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        self.elastic.index(index="netmet_catalog",
+                           doc_type="config", body=body)
+
+    def server_config_apply(self, id):
+        self.elastic.update(index="netmet_catalog",
+                            doc_type="config", id=id,
+                            body={"doc": {"applied": True}})
+
+    def server_config_meshed(self, id):
+        self.elastic.update(index="netmet_catalog",
+                            doc_type="config", id=id,
+                            body={"doc": {"meshed": True}})
+
+    def metrics_add(self):
+        self.elastic.update(index="netmet_data",
+                            doc_type="")
 
     def lock_accuire(self, name, ttl):
         # release old one if ttl hit
@@ -245,7 +224,6 @@ class DB(object):
             "host": net.get_hostname(addr, int(port)),
             "ttl": ttl
         }
-
         try:
             # TODO(boris-42): Check whatever we can delete obsolate lock
             idx = "netmet_lock_%s" % name
