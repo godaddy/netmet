@@ -7,7 +7,7 @@ import flask
 from flask_helpers import routing
 import jsonschema
 
-from netmet import db
+from netmet.server import db
 from netmet.server import deployer
 from netmet.server import mesher
 from netmet.utils import status

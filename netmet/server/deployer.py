@@ -1,14 +1,15 @@
 # Copyright 2017: GoDaddy Inc.
 
 import logging
+import random
 import threading
 
 import futurist
 import requests
 
-from netmet import db
 from netmet import exceptions
-from netmet.utils import eslock
+from netmet.server import db
+from netmet.server.utils import eslock
 
 
 LOG = logging.getLogger(__name__)
@@ -44,17 +45,22 @@ class Deployer(object):
     def _job(self):
         while not self.death.is_set():
             try:
-                with eslock.Glock("deployer"):
+                with eslock.Glock("update_config"):
                     config = db.get().server_config_get()
-                    clients = db.get().clients_get()
 
                     if config and not config["applied"]:
+                        LOG.info("Deployer detect new config: "
+                                 "Updating deployment")
+                        clients = db.get().clients_get()
+
                         # TODO(boris-42): Add support of multi drivers
                         new_clients = StaticDeployer().redeploy(
                             config["config"]["static"], clients)
 
                         db.get().clients_set(new_clients)
                         db.get().server_config_apply(config["id"])
+                    else:
+                        LOG.info("Deployer: no changes in config detected.")
 
             except exceptions.GlobalLockException:
                 pass   # can't accuire lock, someone else is working on it
@@ -62,7 +68,7 @@ class Deployer(object):
             except Exception:
                 LOG.exception("Deployer update failed")
 
-            self.death.wait(10)
+            self.death.wait(9 + random.random())
 
     def redeploy(self, config, clients):
         """Should update deployment based on change in config."""
