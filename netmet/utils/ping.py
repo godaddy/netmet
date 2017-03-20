@@ -99,9 +99,11 @@ class Ping(object):
     def expired(self):
         if self.ret_code is not None or self.timeout is None:
             return False
-        if self.started_at is not None and self.ended_at is not None:
-            elapsed = max(0, self.ended_at - self.started_at)
-            return self.timeout > elapsed
+
+        if self.started_at is not None:
+            elapsed = max(0, monotonic.monotonic() - self.started_at)
+            return self.timeout < elapsed
+
         return False
 
     def create_packet(self):
