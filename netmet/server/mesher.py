@@ -2,11 +2,12 @@
 
 import json
 import logging
+import random
 import threading
 
-from netmet import db
 from netmet import exceptions
-from netmet.utils import eslock
+from netmet.server import db
+from netmet.server.utils import eslock
 
 import futurist
 import futurist.periodics
@@ -57,12 +58,13 @@ class Mesher(object):
     def _job(self):
         while not self._death.is_set():
             try:
-                with eslock.Glock("mesher"):
+                with eslock.Glock("update_config"):
                     # TODO(boris-42): Alogrithm should be a bit smarter
                     # even if it is meshed try to update all not configured
                     # clients.
                     config = self.db.server_config_get()
                     if config and config["applied"] and not config["meshed"]:
+                        LOG.info("Mesher detect new config: Remeshing clients")
                         for c in self._full_mesh(self.db.clients_get()):
                             # TODO(boris-42): Run this in parallel
                             try:
@@ -75,7 +77,9 @@ class Mesher(object):
                                     "Failed to update client config %s "
                                     % c[0]["host"])
 
-                    self.db.server_config_meshed(config["id"])
+                        self.db.server_config_meshed(config["id"])
+                    else:
+                        LOG.info("Mesher: no changes in config detected")
 
             except exceptions.GlobalLockException:
                 pass   # can't accuire lock, someone else is working on it
@@ -83,4 +87,4 @@ class Mesher(object):
             except Exception:
                 LOG.exception("Mesher update failed")
 
-            self._death.wait(10)
+            self._death.wait(9 + random.random())

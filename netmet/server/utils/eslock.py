@@ -2,8 +2,8 @@
 
 import logging
 
-from netmet import db
 from netmet import exceptions
+from netmet.server import db
 
 
 LOG = logging.getLogger(__name__)
