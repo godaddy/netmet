@@ -1,6 +1,7 @@
 # Copyright 2017: GoDaddy Inc.
 
 import collections
+import logging
 import threading
 import time
 
@@ -8,6 +9,9 @@ import futurist
 import futurist.periodics
 
 from netmet.utils import ping
+
+
+LOG = logging.getLogger(__name__)
 
 
 class Collector(object):
@@ -27,23 +31,26 @@ class Collector(object):
         self.main_thread = None
         self.main_worker = None
         self.processing_thread = None
+        self.pinger = ping.Pinger()
 
     def gen_periodic_ping(self, host):
-
         @futurist.periodics.periodic(self.period)
         def ping_():
-            result = ping.ping(host["client_ip"],
-                               timeout=self.timeout,
-                               packet_size=self.packet_size)
-            self.queue.append({
-                "src": self.client_host,
-                "dest": host,
-                "timestamp": result["timestamp"],
-                "latency": result["rtt"],
-                "packet_size": result["packet_size"],
-                "transmitted":  1 if result["ret_code"] == 0 else 0,
-                "ret_code": result["ret_code"]
-            })
+            try:
+                result = self.pinger.ping(host["client_ip"],
+                                          timeout=self.timeout,
+                                          packet_size=self.packet_size)
+                self.queue.append({
+                    "src": self.client_host,
+                    "dest": host,
+                    "timestamp": result.created_on,
+                    "latency": result.rtt and result.rtt * 1000,
+                    "packet_size": result.packet_size,
+                    "transmitted":  1 if result.ret_code == 0 else 0,
+                    "ret_code": result.ret_code
+                })
+            except Exception:
+                LOG.exception("Pinger failed to ping")
 
         return ping_
 
@@ -70,6 +77,7 @@ class Collector(object):
                 return False
             self.running = True
 
+        self.pinger.start()
         callables = [(self.gen_periodic_ping(h), (), {}) for h in self.hosts]
         executor_factory = lambda: futurist.ThreadPoolExecutor(max_workers=50)
         self.main_worker = futurist.periodics.PeriodicWorker(
@@ -91,3 +99,4 @@ class Collector(object):
                 self.main_worker.wait()
                 self.main_thread.join()
                 self.processing_thread.join()
+                self.pinger.stop()
