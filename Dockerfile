@@ -1,12 +1,11 @@
-FROM ubuntu:16.04
-
-RUN apt-get update && apt-get install --yes wget python-dev build-essential
-
-# ubuntu's pip is too old to work with the version of requests we
-# require, so get pip with get-pip.py
-RUN wget https://bootstrap.pypa.io/get-pip.py && \
-  python get-pip.py && \
-  rm -f get-pip.py
+FROM alpine:latest
+MAINTAINER Sushant Bhadkamkar
+RUN apk add --update \
+    build-base \
+    linux-headers \
+    python \
+    python-dev \
+    py-pip
 
 COPY . /app
 WORKDIR /app
