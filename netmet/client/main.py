@@ -4,6 +4,7 @@ import threading
 
 import flask
 from flask_helpers import routing
+import jsonschema
 
 from netmet.client import collector
 from netmet.utils import status
@@ -44,9 +45,45 @@ def set_config():
     """Recreates collector instance providing list of new hosts."""
     global _lock, _collector, _config
 
-    data = flask.request.get_json(silent=False, force=True)
+    schema = {
+        "type": "object",
+        "definitions": {
+            "client": {
+                "type": "object",
+                "properties": {
+                    "host": {"type": "string"},
+                    "ip": {"type": "string"},
+                    "mac": {"type": "string"},
+                    "az": {"type": "string"},
+                    "dc": {"type": "string"}
+                },
+                "required": ["ip", "host", "az", "dc"]
+            }
+        },
+        "properties": {
+            "netmet_server": {"type": "string"},
+            "client_host": {
+                "$ref": "#/definitions/client"
+            },
+            "hosts": {
+                "type": "array",
+                "items": {"$ref": "#/definitions/client"}
+            },
+            "period": {"type": "number", "minimum": 0.1},
+            "timeout": {"type": "number", "minimum": 0.01}
+        },
+        "required": ["netmet_server", "client_host", "hosts"]
+    }
 
-    # jsonshceme validation here
+    try:
+        data = flask.request.get_json(silent=False, force=True)
+        jsonschema.validate(data, schema)
+        data["period"] = data.get("period", 5)
+        data["timeout"] = data.get("timeout", 1)
+        if data["period"] <= data["timeout"]:
+            raise ValueError("timeout should be smaller then period.")
+    except (ValueError, jsonschema.exceptions.ValidationError) as e:
+        return flask.jsonify({"error": "Bad request: %s" % e}), 400
 
     with _lock:
         if _collector:
