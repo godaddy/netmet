@@ -42,25 +42,33 @@ class Deployer(object):
                     cls._self.worker.shutdown()
                     cls._self = None
 
+
     def _job(self):
+        get_conf = db.get().server_config_get
+        is_applied = lambda cfg: not cfg or (cfg and cfg["applied"])
+
+        no_changes_msg = "Deployer: no changes in config detected."
+
         while not self.death.is_set():
             try:
-                with eslock.Glock("update_config"):
-                    config = db.get().server_config_get()
+                if is_applied(get_conf()):
+                    LOG.info(no_changes_msg)
+                else:
+                    with eslock.Glock("update_config"):
+                        config = get_conf()   # Refresh config after lock
+                        if not is_applied(config):
+                            LOG.info("Deployer detect new config: "
+                                     "Updating deployment")
+                            clients = db.get().clients_get()
 
-                    if config and not config["applied"]:
-                        LOG.info("Deployer detect new config: "
-                                 "Updating deployment")
-                        clients = db.get().clients_get()
+                            # TODO(boris-42): Add support of multi drivers
+                            new_clients = StaticDeployer().redeploy(
+                                config["config"]["static"], clients)
 
-                        # TODO(boris-42): Add support of multi drivers
-                        new_clients = StaticDeployer().redeploy(
-                            config["config"]["static"], clients)
-
-                        db.get().clients_set(new_clients)
-                        db.get().server_config_apply(config["id"])
-                    else:
-                        LOG.info("Deployer: no changes in config detected.")
+                            db.get().clients_set(new_clients)
+                            db.get().server_config_apply(config["id"])
+                        else:
+                            LOG.info(no_changes_msg)
 
             except exceptions.GlobalLockException:
                 pass   # can't accuire lock, someone else is working on it
