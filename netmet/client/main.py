@@ -76,6 +76,12 @@ def unregister():
 app = routing.add_routing_map(app, html_uri=None, json_uri="/")
 
 
+@app.after_request
+def add_request_stats(response):
+    status.count_requests(response.status_code)
+    return response
+
+
 def main():
     app.run(host=app.config.get("HOST", "0.0.0.0"),
             port=app.config.get("PORT", 5000))

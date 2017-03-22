@@ -105,6 +105,12 @@ def metrics_get(period):
 app = routing.add_routing_map(app, html_uri=None, json_uri="/")
 
 
+@app.after_request
+def add_request_stats(response):
+    status.count_requests(response.status_code)
+    return response
+
+
 def main():
     logging.basicConfig(level=logging.INFO)
     HOST = app.config.get("HOST", "0.0.0.0")
