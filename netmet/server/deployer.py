@@ -1,8 +1,6 @@
 # Copyright 2017: GoDaddy Inc.
 
 import logging
-import random
-import threading
 
 import futurist
 import requests
@@ -10,45 +8,30 @@ import requests
 from netmet import exceptions
 from netmet.server import db
 from netmet.server.utils import eslock
+from netmet.utils import worker
 
 
 LOG = logging.getLogger(__name__)
 
 
-class Deployer(object):
-    _self = None
-    _lock = threading.Lock()
+class Deployer(worker.LonelyWorker):
 
     def __init__(self):
-        """Do not call this method directly. Call create() instead."""
-
-    @classmethod
-    def create(cls):
-        cls._self = cls()
-        cls._self.worker = futurist.ThreadPoolExecutor()
-        cls._self.death = threading.Event()
-        cls._self.worker.submit(cls._self._job)
-
-    @classmethod
-    def get(cls):
-        return cls._self
-
-    @classmethod
-    def destroy(cls):
-        with cls._lock:
-            if cls._self is not None:
-                if not cls._self.death.is_set():
-                    cls._self.death.set()
-                    cls._self.worker.shutdown()
-                    cls._self = None
+        """Do not use this method directly. Use create() instead."""
 
     def _job(self):
-        while not self.death.is_set():
-            try:
-                with eslock.Glock("update_config"):
-                    config = db.get().server_config_get()
+        get_conf = db.get().server_config_get
+        is_applied = lambda cfg: not cfg or (cfg and cfg["applied"])
 
-                    if config and not config["applied"]:
+        no_changes_msg = "Deployer: no changes in config detected."
+
+        try:
+            if is_applied(get_conf()):
+                LOG.info(no_changes_msg)
+            else:
+                with eslock.Glock("update_config"):
+                    config = get_conf()   # Refresh config after lock
+                    if not is_applied(config):
                         LOG.info("Deployer detect new config: "
                                  "Updating deployment")
                         clients = db.get().clients_get()
@@ -60,15 +43,13 @@ class Deployer(object):
                         db.get().clients_set(new_clients)
                         db.get().server_config_apply(config["id"])
                     else:
-                        LOG.info("Deployer: no changes in config detected.")
+                        LOG.info(no_changes_msg)
 
-            except exceptions.GlobalLockException:
-                pass   # can't accuire lock, someone else is working on it
+        except exceptions.GlobalLockException:
+            pass   # can't accuire lock, someone else is working on it
 
-            except Exception:
-                LOG.exception("Deployer update failed")
-
-            self.death.wait(9 + random.random())
+        except Exception:
+            LOG.exception("Deployer update failed")
 
     def redeploy(self, config, clients):
         """Should update deployment based on change in config."""

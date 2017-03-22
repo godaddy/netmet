@@ -211,9 +211,18 @@ class DB(object):
                             doc_type="config", id=id,
                             body={"doc": {"meshed": True}})
 
-    def metrics_add(self):
-        self.elastic.update(index="netmet_data",
-                            doc_type="")
+    def metrics_add(self, doc_type, data):
+        if doc_type not in ["east-west", "south-north"]:
+            raise ValueError("Wrong doc type")
+
+        bulk_body = []
+        for d in data:
+            bulk_body.append(json.dumps({"index": {}}))
+            bulk_body.append(json.dumps(d))
+
+        # NOTE(boris-42): We should analyze Elastic response here.
+        self.elastic.bulk(index="netmet_data", doc_type=doc_type,
+                          body="\n".join(bulk_body))
 
     def lock_accuire(self, name, ttl):
         # release old one if ttl hit

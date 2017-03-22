@@ -1,5 +1,6 @@
 # Copyright 2017: GoDaddy Inc.
 
+import json
 import logging
 import os
 
@@ -13,12 +14,19 @@ from netmet.server import mesher
 from netmet.utils import status
 
 
+LOG = logging.getLogger(__name__)
 app = flask.Flask(__name__, static_folder=None)
 
 
 @app.errorhandler(404)
 def not_found(error):
     return flask.jsonify({"error": "Not Found"}), 404
+
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    """500 Handle Internal Errors."""
+    return flask.jsonify({"error": "Internal Server Error"}), 500
 
 
 @app.route("/api/v1/status", methods=["GET"])
@@ -42,7 +50,6 @@ def config_get():
 @app.route("/api/v1/config", methods=["POST"])
 def config_set():
     """Sets netmet server configuration."""
-    config = flask.request.get_json(silent=False, force=True)
 
     CONFIG_SCHEMA = {
         "type": "object",
@@ -74,11 +81,14 @@ def config_set():
         "additionalProperties": False
     }
     try:
+        config = flask.request.get_json(silent=False, force=True)
         jsonschema.validate(config, CONFIG_SCHEMA)
     except (ValueError, jsonschema.exceptions.ValidationError) as e:
         return flask.jsonify({"error": "Bad request: %s" % e}), 400
 
     db.get().server_config_add(config)
+    deployer.Deployer.force_update()
+    mesher.Mesher.force_update()
     return flask.jsonify({"message": "Config was updated"}), 201
 
 
@@ -88,12 +98,39 @@ def clients_list():
     return flask.jsonify(db.get().clients_get()), 200
 
 
-@app.route("/api/v1/metrics", methods=["PUT"])
+@app.route("/api/v1/metrics", methods=["POST", "PUT"])
 def metrics_add():
     """Stores metrics to elastic."""
-    # data = flask.request.get_json(silent=False, force=True)
 
-    return flask.jsonify({"message": "noop"}), 200
+    # Check just basic schema, let elastic check everything else
+    schema = {
+        "type": "array",
+        "items": {"type": "object"}
+    }
+
+    try:
+        req_data = flask.request.get_json(silent=False, force=True)
+        jsonschema.validate(req_data, schema)
+    except (ValueError, jsonschema.exceptions.ValidationError) as e:
+        return flask.jsonify({"error": "Bad request: %s" % e}), 400
+    else:
+        data = {"south-north": [], "east-west": []}
+        for d in req_data:
+            for key in data:
+                if key in d:
+                    data[key].append(d[key])
+                    break
+            else:
+                LOG.warning("Ignoring wrong object %s" % json.dumps(d))
+
+        # TODO(boris-42): Use pusher here, to reduce amount of quires
+        # from netmet server to elastic, join data from different netmet
+        # clients requests before pushing them to elastic
+        for k, v in data.iteritems():
+            if v:
+                db.get().metrics_add(k, v)
+
+    return flask.jsonify({"message": "successfully stored metrics"}), 201
 
 
 @app.route("/api/v1/metrics/<period>", methods=["GET"])
@@ -105,14 +142,22 @@ def metrics_get(period):
 app = routing.add_routing_map(app, html_uri=None, json_uri="/")
 
 
+@app.after_request
+def add_request_stats(response):
+    status.count_requests(response.status_code)
+    return response
+
+
 def main():
-    logging.basicConfig(level=logging.INFO)
+    level = logging.DEBUG if os.getenv("DEBUG") else logging.INFO
+    logging.basicConfig(level=level)
+
     HOST = app.config.get("HOST", "0.0.0.0")
     PORT = app.config.get("PORT", 5005)
 
-    db.init(os.getenv("elastic_urls").split(","))
-    deployer.Deployer().create()
-    mesher.Mesher().create("%s:%s" % (HOST, PORT))
+    db.init(os.getenv("ELASTIC").split(","))
+    deployer.Deployer.create()
+    mesher.Mesher.create("%s:%s" % (HOST, PORT))
 
     app.run(host=HOST, port=PORT)
 

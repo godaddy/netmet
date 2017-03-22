@@ -1,9 +1,12 @@
 # Copyright 2017: GoDaddy Inc.
 
+import logging
+import os
 import threading
 
 import flask
 from flask_helpers import routing
+import jsonschema
 
 from netmet.client import collector
 from netmet.utils import status
@@ -19,6 +22,12 @@ _config = None
 def not_found(error):
     """404 Page in case of failures."""
     return flask.jsonify({"error": "Not Found"}), 404
+
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    """500 Handle Internal Errors."""
+    return flask.jsonify({"error": "Internal Server Error"}), 500
 
 
 @app.route("/api/v1/status", methods=['GET'])
@@ -44,9 +53,45 @@ def set_config():
     """Recreates collector instance providing list of new hosts."""
     global _lock, _collector, _config
 
-    data = flask.request.get_json(silent=False, force=True)
+    schema = {
+        "type": "object",
+        "definitions": {
+            "client": {
+                "type": "object",
+                "properties": {
+                    "host": {"type": "string"},
+                    "ip": {"type": "string"},
+                    "mac": {"type": "string"},
+                    "az": {"type": "string"},
+                    "dc": {"type": "string"}
+                },
+                "required": ["ip", "host", "az", "dc"]
+            }
+        },
+        "properties": {
+            "netmet_server": {"type": "string"},
+            "client_host": {
+                "$ref": "#/definitions/client"
+            },
+            "hosts": {
+                "type": "array",
+                "items": {"$ref": "#/definitions/client"}
+            },
+            "period": {"type": "number", "minimum": 0.1},
+            "timeout": {"type": "number", "minimum": 0.01}
+        },
+        "required": ["netmet_server", "client_host", "hosts"]
+    }
 
-    # jsonshceme validation here
+    try:
+        data = flask.request.get_json(silent=False, force=True)
+        jsonschema.validate(data, schema)
+        data["period"] = data.get("period", 5)
+        data["timeout"] = data.get("timeout", 1)
+        if data["period"] <= data["timeout"]:
+            raise ValueError("timeout should be smaller then period.")
+    except (ValueError, jsonschema.exceptions.ValidationError) as e:
+        return flask.jsonify({"error": "Bad request: %s" % e}), 400
 
     with _lock:
         if _collector:
@@ -76,7 +121,16 @@ def unregister():
 app = routing.add_routing_map(app, html_uri=None, json_uri="/")
 
 
+@app.after_request
+def add_request_stats(response):
+    status.count_requests(response.status_code)
+    return response
+
+
 def main():
+    level = logging.DEBUG if os.getenv("DEBUG") else logging.INFO
+    logging.basicConfig(level=level)
+
     app.run(host=app.config.get("HOST", "0.0.0.0"),
             port=app.config.get("PORT", 5000))
 
