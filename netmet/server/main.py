@@ -14,12 +14,19 @@ from netmet.server import mesher
 from netmet.utils import status
 
 
+LOG = logging.getLogger(__name__)
 app = flask.Flask(__name__, static_folder=None)
 
 
 @app.errorhandler(404)
 def not_found(error):
     return flask.jsonify({"error": "Not Found"}), 404
+
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    """500 Handle Internal Errors."""
+    return flask.jsonify({"error": "Internal Server Error"}), 500
 
 
 @app.route("/api/v1/status", methods=["GET"])
@@ -43,7 +50,6 @@ def config_get():
 @app.route("/api/v1/config", methods=["POST"])
 def config_set():
     """Sets netmet server configuration."""
-    config = flask.request.get_json(silent=False, force=True)
 
     CONFIG_SCHEMA = {
         "type": "object",
@@ -75,11 +81,14 @@ def config_set():
         "additionalProperties": False
     }
     try:
+        config = flask.request.get_json(silent=False, force=True)
         jsonschema.validate(config, CONFIG_SCHEMA)
     except (ValueError, jsonschema.exceptions.ValidationError) as e:
         return flask.jsonify({"error": "Bad request: %s" % e}), 400
 
     db.get().server_config_add(config)
+    deployer.Deployer.force_update()
+    mesher.Mesher.force_update()
     return flask.jsonify({"message": "Config was updated"}), 201
 
 
@@ -140,13 +149,15 @@ def add_request_stats(response):
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
+    level = logging.DEBUG if os.getenv("DEBUG") else logging.INFO
+    logging.basicConfig(level=level)
+
     HOST = app.config.get("HOST", "0.0.0.0")
     PORT = app.config.get("PORT", 5005)
 
-    db.init(os.getenv("elastic_urls").split(","))
-    deployer.Deployer().create()
-    mesher.Mesher().create("%s:%s" % (HOST, PORT))
+    db.init(os.getenv("ELASTIC").split(","))
+    deployer.Deployer.create()
+    mesher.Mesher.create("%s:%s" % (HOST, PORT))
 
     app.run(host=HOST, port=PORT)
 

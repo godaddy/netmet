@@ -1,5 +1,7 @@
 # Copyright 2017: GoDaddy Inc.
 
+import logging
+import os
 import threading
 
 import flask
@@ -20,6 +22,12 @@ _config = None
 def not_found(error):
     """404 Page in case of failures."""
     return flask.jsonify({"error": "Not Found"}), 404
+
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    """500 Handle Internal Errors."""
+    return flask.jsonify({"error": "Internal Server Error"}), 500
 
 
 @app.route("/api/v1/status", methods=['GET'])
@@ -120,6 +128,9 @@ def add_request_stats(response):
 
 
 def main():
+    level = logging.DEBUG if os.getenv("DEBUG") else logging.INFO
+    logging.basicConfig(level=level)
+
     app.run(host=app.config.get("HOST", "0.0.0.0"),
             port=app.config.get("PORT", 5000))
 
