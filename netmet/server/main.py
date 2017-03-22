@@ -1,5 +1,6 @@
 # Copyright 2017: GoDaddy Inc.
 
+import json
 import logging
 import os
 
@@ -88,12 +89,39 @@ def clients_list():
     return flask.jsonify(db.get().clients_get()), 200
 
 
-@app.route("/api/v1/metrics", methods=["PUT"])
+@app.route("/api/v1/metrics", methods=["POST", "PUT"])
 def metrics_add():
     """Stores metrics to elastic."""
-    # data = flask.request.get_json(silent=False, force=True)
 
-    return flask.jsonify({"message": "noop"}), 200
+    # Check just basic schema, let elastic check everything else
+    schema = {
+        "type": "array",
+        "items": {"type": "object"}
+    }
+
+    try:
+        req_data = flask.request.get_json(silent=False, force=True)
+        jsonschema.validate(req_data, schema)
+    except (ValueError, jsonschema.exceptions.ValidationError) as e:
+        return flask.jsonify({"error": "Bad request: %s" % e}), 400
+    else:
+        data = {"south-north": [], "east-west": []}
+        for d in req_data:
+            for key in data:
+                if key in d:
+                    data[key].append(d[key])
+                    break
+            else:
+                LOG.warning("Ignoring wrong object %s" % json.dumps(d))
+
+        # TODO(boris-42): Use pusher here, to reduce amount of quires
+        # from netmet server to elastic, join data from different netmet
+        # clients requests before pushing them to elastic
+        for k, v in data.iteritems():
+            if v:
+                db.get().metrics_add(k, v)
+
+    return flask.jsonify({"message": "successfully stored metrics"}), 201
 
 
 @app.route("/api/v1/metrics/<period>", methods=["GET"])
