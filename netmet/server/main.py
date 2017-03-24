@@ -148,19 +148,24 @@ def add_request_stats(response):
     return response
 
 
-def main():
-    level = logging.DEBUG if os.getenv("DEBUG") else logging.INFO
-    logging.basicConfig(level=level)
+def load():
+    NETMET_SERVER = os.getenv("NETMET_SERVER_URL")
+    if not NETMET_SERVER:
+        raise ValueError("Set NETMET_SERVER_URL to NetMet server public "
+                         "available address")
 
-    HOST = app.config.get("HOST", "0.0.0.0")
-    PORT = app.config.get("PORT", 5005)
+    ELASTIC = os.getenv("ELASTIC", "")
+    if not ELASTIC:
+        raise ValueError("Set ELASTIC to list of urls of instances of cluster,"
+                         " separated by comma.")
 
-    db.init(os.getenv("ELASTIC").split(","))
+    db.init(ELASTIC.split(","))
     deployer.Deployer.create()
-    mesher.Mesher.create("%s:%s" % (HOST, PORT))
+    mesher.Mesher.create(NETMET_SERVER)
 
-    app.run(host=HOST, port=PORT)
+    return app
 
 
 if __name__ == "__main__":
-    main()
+    load()
+    app.run(host="0.0.0.0", port=5005)

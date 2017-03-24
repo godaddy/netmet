@@ -1,7 +1,5 @@
 # Copyright 2017: GoDaddy Inc.
 
-import logging
-import os
 import threading
 
 import flask
@@ -127,13 +125,9 @@ def add_request_stats(response):
     return response
 
 
-def main():
-    level = logging.DEBUG if os.getenv("DEBUG") else logging.INFO
-    logging.basicConfig(level=level)
-
-    app.run(host=app.config.get("HOST", "0.0.0.0"),
-            port=app.config.get("PORT", 5000))
+def load():
+    return app
 
 
 if __name__ == "__main__":
-    main()
+    app.run(host="0.0.0.0", port=5000)
