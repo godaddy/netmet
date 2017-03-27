@@ -8,7 +8,6 @@ import threading
 import elasticsearch
 
 from netmet import exceptions
-from netmet.utils import net
 
 
 LOG = logging.getLogger(__name__)
@@ -126,7 +125,8 @@ class DB(object):
         }
     }
 
-    def __init__(self, elastic):
+    def __init__(self, own_url, elastic):
+        self.own_url = own_url
         self.elastic_urls = elastic
         self.elastic = elasticsearch.Elasticsearch(elastic)
         self._ensure_elastic()
@@ -226,11 +226,9 @@ class DB(object):
 
     def lock_accuire(self, name, ttl):
         # release old one if ttl hit
-        addr, port = self.elastic_urls[0].rsplit(":", 1)
-
         data = {
             "updated_at": datetime.datetime.now().isoformat(),
-            "host": net.get_hostname(addr, int(port)),
+            "url": self.own_url,
             "ttl": ttl
         }
         try:

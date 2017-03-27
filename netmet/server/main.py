@@ -152,14 +152,18 @@ def load():
     NETMET_SERVER = os.getenv("NETMET_SERVER_URL")
     if not NETMET_SERVER:
         raise ValueError("Set NETMET_SERVER_URL to NetMet server public "
-                         "available address")
+                         "load balanced address")
+
+    NETMET_OWN_URL = os.getenv("NETMET_OWN_URL")
+    if not NETMET_OWN_URL:
+        raise ValueError("Set NETMET_OWN_URL to NetMet server address")
 
     ELASTIC = os.getenv("ELASTIC", "")
     if not ELASTIC:
         raise ValueError("Set ELASTIC to list of urls of instances of cluster,"
                          " separated by comma.")
 
-    db.init(ELASTIC.split(","))
+    db.init(NETMET_OWN_URL, ELASTIC.split(","))
     deployer.Deployer.create()
     mesher.Mesher.create(NETMET_SERVER)
 
