@@ -68,8 +68,8 @@ class StaticDeployer(Deployer):
             c["running"] = c["host"] in old_idx
             c["configured"] = False
 
-        unregister = ["%s/api/v1/unregister" % h for h in old_idx
-                      if h not in new_idx]
+        unregister = ["%s:%s/api/v1/unregister" % (h, old_idx[h]["port"])
+                      for h in old_idx if h not in new_idx]
         with futurist.ThreadPoolExecutor(max_workers=10) as e:
             e.map(requests.post, unregister)
 

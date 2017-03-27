@@ -51,9 +51,9 @@ class Mesher(worker.LonelyWorker):
                         for c in self._full_mesh(self.db.clients_get()):
                             # TODO(boris-42): Run this in parallel
                             try:
-                                requests.post(
-                                    "%s/api/v1/config" % c[0]["host"],
-                                    json=c[1])
+                                requests.post("%s:%s/api/v1/config"
+                                              % (c[0]["host"], c[0]["port"]),
+                                              json=c[1])
                                 # Set client configured
                             except Exception:
                                 exc = bool(LOG.isEnabledFor(logging.DEBUG))

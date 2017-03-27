@@ -45,6 +45,7 @@ class DB(object):
     _CLIENT_PROPS = {
         "host": {"type": "keyword"},
         "ip": {"type": "ip"},
+        "port": {"type": "integer"},
         "mac": {"type": "keyword"},
         "az": {"type": "keyword"},
         "dc": {"type": "keyword"},

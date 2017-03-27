@@ -59,6 +59,7 @@ def set_config():
                 "properties": {
                     "host": {"type": "string"},
                     "ip": {"type": "string"},
+                    "port": {"type": "integer"},
                     "mac": {"type": "string"},
                     "az": {"type": "string"},
                     "dc": {"type": "string"}
