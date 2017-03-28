@@ -149,6 +149,11 @@ def add_request_stats(response):
     return response
 
 
+def die():
+    deployer.Deployer.destroy()
+    mesher.Mesher.destroy()
+
+
 def load():
     NETMET_SERVER = os.getenv("NETMET_SERVER_URL")
     if not NETMET_SERVER:

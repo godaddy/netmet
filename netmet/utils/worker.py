@@ -34,9 +34,9 @@ class LonelyWorker(object):
     def destroy(cls):
         with cls._lock:
             if cls._self is not None:
-                if not cls._self.death.is_set():
-                    cls._self.death.set()
-                    cls._self.worker.shutdown()
+                if not cls._self._death.is_set():
+                    cls._self._death.set()
+                    cls._self._worker.shutdown()
                     cls._self = None
 
     def _periodic_workder(self):
