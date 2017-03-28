@@ -1,5 +1,6 @@
 # Copyright 2017: GoDaddy Inc.
 
+import copy
 import datetime
 import json
 import logging
@@ -21,19 +22,17 @@ _DB = None
 _INIT_LOCK = threading.Lock()
 
 
-def get(elastic=None):
-    global _DB
-    with _INIT_LOCK:
-        if not _DB:
-            if not elastic:
-                raise exceptions.DBNotInitialized()
-
-            _DB = DB(elastic)
+def get():
+    if not _DB:
+        raise exceptions.DBNotInitialized()
     return _DB
 
 
-def init(elastic):
-    get(elastic=elastic)
+def init(own_url, elastic):
+    global _DB
+    with _INIT_LOCK:
+        if not _DB:
+            _DB = DB(own_url, elastic)
 
 
 def is_inited(elastic):
@@ -48,9 +47,13 @@ class DB(object):
         "port": {"type": "integer"},
         "mac": {"type": "keyword"},
         "az": {"type": "keyword"},
-        "dc": {"type": "keyword"},
-        "registered_at": {"type": "date"}
+        "dc": {"type": "keyword"}
     }
+
+    _CLIENT_CONF_PROPS = copy.deepcopy(_CLIENT_PROPS)
+    _CLIENT_CONF_PROPS.update({
+        "configured": {"type": "boolean"}
+    })
 
     _LATENCY_TYPE = {
         "type": "nested",
@@ -66,17 +69,18 @@ class DB(object):
             "index": {
                 "number_of_shards": 3,
                 "number_of_replicas": 3
-            },
-            "index.mapper.dynamic": False
+            }
         },
         "mappings": {
             "clients": {
-                "properties": _CLIENT_PROPS
+                "dynamic": "strict",
+                "properties": _CLIENT_CONF_PROPS
             },
             "config": {
+                "dynamic": "strict",
                 "properties": {
                     "timestamp": {"type": "date"},
-                    "cofig": {"type": "text"},
+                    "config": {"type": "text"},
                     "applied": {"type": "boolean"},
                     "meshed": {"type": "boolean"}
                 }
@@ -89,23 +93,25 @@ class DB(object):
             "index": {
                 "number_of_shards": 10,
                 "number_of_replicas": 1
-            },
-            "index.mapper.dynamic": False
+            }
         },
         "mappings": {
             "south-north": {
+                "dynamic": "strict",
                 "properties": {
                     "client": {"type": "nested", "properties": _CLIENT_PROPS},
                     "dest": {"type": "keyword"},
                     "protocol": {"type": "text"},
                     "timestamp": {"type": "date"},
                     "transmitted": {"type": "integer"},
+                    "packet_size": {"type": "integer"},
                     "lost": {"type": "integer"},
                     "latency": _LATENCY_TYPE,
                     "ret_code": {"type": "integer"}
                 }
             },
             "east-west": {
+                "dynamic": "strict",
                 "properties": {
                     "protocol": {"type": "text"},
                     "client_src": {
@@ -117,6 +123,7 @@ class DB(object):
                         "properties": _CLIENT_PROPS
                     },
                     "timestamp": {"type": "date"},
+                    "packet_size": {"type": "integer"},
                     "transmitted": {"type": "integer"},
                     "lost": {"type": "integer"},
                     "latency": _LATENCY_TYPE,

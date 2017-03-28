@@ -29,6 +29,6 @@ class Glock(object):
         if not self.accuired:
             return
 
-        if not db.get(self.name).lock_release(self.name):
+        if not db.get().lock_release(self.name):
             logging.warning("Can't release lock %(name)s."
                             % {"name": self.name})

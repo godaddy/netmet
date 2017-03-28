@@ -76,7 +76,8 @@ def set_config():
                     "az": {"type": "string"},
                     "dc": {"type": "string"}
                 },
-                "required": ["ip", "host", "az", "dc"]
+                "required": ["ip", "host", "az", "dc", "port"],
+                "additionProperties": False
             }
         },
         "properties": {

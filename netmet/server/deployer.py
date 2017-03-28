@@ -65,7 +65,6 @@ class StaticDeployer(Deployer):
         new_idx = {c["host"]: c for c in new_clients}
 
         for c in new_clients:
-            c["running"] = c["host"] in old_idx
             c["configured"] = False
 
         unregister = ["%s:%s/api/v1/unregister" % (h, old_idx[h]["port"])
