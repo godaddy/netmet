@@ -42,6 +42,7 @@ class Deployer(worker.LonelyWorker):
 
                         db.get().clients_set(new_clients)
                         db.get().server_config_apply(config["id"])
+                        return True
                     else:
                         LOG.info(no_changes_msg)
 

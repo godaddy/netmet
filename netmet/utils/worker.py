@@ -15,12 +15,13 @@ class LonelyWorker(object):
         """Do not call this method directly. Call create() instead."""
 
     @classmethod
-    def create(cls):
+    def create(cls, callback_after_job=None):
         cls._self = cls()
         cls._self._worker = futurist.ThreadPoolExecutor()
         cls._self._death = threading.Event()
         cls._self._worker.submit(cls._self._periodic_workder)
         cls._self._force_update = False
+        cls._self._callback_after_job = callback_after_job or (lambda: True)
 
     @classmethod
     def get(cls):
@@ -41,7 +42,9 @@ class LonelyWorker(object):
 
     def _periodic_workder(self):
         while not self._death.is_set():
-            self._job()
+            if self._job():
+                self._callback_after_job()
+
             t = 0
             while t < self._period:
                 if self._force_update:
