@@ -2,6 +2,7 @@
 
 import logging
 import os
+import signal
 
 from gevent import wsgi
 
@@ -15,14 +16,21 @@ def run():
 
     if not os.getenv("APP") or os.getenv("APP") not in ["server", "client"]:
         raise ValueError("Set APP env variable to 'server' or 'client'")
-
     elif os.getenv("APP") == "server":
-        app = server_main.load()
+        mode = server_main
     else:
-        app = client_main.load()
+        mode = client_main
 
+    app = mode.load()
     http_server = wsgi.WSGIServer(
         (os.getenv("HOST", ""), int(os.getenv("PORT", 5000))), app)
+
+    def die(*args, **kwargs):
+        http_server.stop()
+        mode.die()
+
+    signal.signal(signal.SIGTERM, die)
+    signal.signal(signal.SIGINT, die)
     http_server.serve_forever()
 
 

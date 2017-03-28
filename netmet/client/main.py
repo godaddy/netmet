@@ -11,9 +11,21 @@ from netmet.utils import status
 
 
 app = flask.Flask(__name__, static_folder=None)
+
+# TOOD(boris-42): Move this to the Collector (unify with server).
 _lock = threading.Lock()
 _collector = None
 _config = None
+
+
+def _destroy_collector():
+    global _lock, _collector, _config
+
+    with _lock:
+        if _collector:
+            _collector.stop()
+            _collector = None
+            _config = None
 
 
 @app.errorhandler(404)
@@ -59,11 +71,13 @@ def set_config():
                 "properties": {
                     "host": {"type": "string"},
                     "ip": {"type": "string"},
+                    "port": {"type": "integer"},
                     "mac": {"type": "string"},
                     "az": {"type": "string"},
                     "dc": {"type": "string"}
                 },
-                "required": ["ip", "host", "az", "dc"]
+                "required": ["ip", "host", "az", "dc", "port"],
+                "additionProperties": False
             }
         },
         "properties": {
@@ -105,14 +119,7 @@ def set_config():
 @app.route("/api/v1/unregister", methods=['POST'])
 def unregister():
     """Stops collector system."""
-    global _lock, _collector, _config
-
-    with _lock:
-        if _collector:
-            _collector.stop()
-            _collector = None
-            _config = None
-
+    _destroy_collector()
     return flask.jsonify({"message": "Netmet clinet is unregistered."}), 201
 
 
@@ -123,6 +130,10 @@ app = routing.add_routing_map(app, html_uri=None, json_uri="/")
 def add_request_stats(response):
     status.count_requests(response.status_code)
     return response
+
+
+def die():
+    _destroy_collector()
 
 
 def load():

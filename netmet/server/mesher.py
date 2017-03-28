@@ -24,10 +24,11 @@ class Mesher(worker.LonelyWorker):
         cls._self.netmet_server_url = netmet_server_url
 
     def _full_mesh(self, clients):
-        mesh = []
+        clients = [{k: x[k] for k in ["ip", "port", "host", "dc", "az"]}
+                   for x in clients]
+
         for i in xrange(len(clients)):
-            mesh.append([clients[i], clients[:i] + clients[i + 1:]])
-        return mesh
+            yield [clients[i], clients[:i] + clients[i + 1:]]
 
     def _job(self):
         get_conf = db.get().server_config_get
@@ -48,20 +49,27 @@ class Mesher(worker.LonelyWorker):
                     if not is_meshed(config):
                         LOG.info("Mesher detect new config: "
                                  "Remeshing clients")
-                        for c in self._full_mesh(self.db.clients_get()):
+                        for c in self._full_mesh(db.get().clients_get()):
                             # TODO(boris-42): Run this in parallel
                             try:
-                                requests.post(
-                                    "%s/api/v1/config" % c[0]["host"],
-                                    json=c[1])
+                                body = {
+                                    "netmet_server": self.netmet_server_url,
+                                    "client_host": c[0],
+                                    "hosts": c[1]
+                                }
+                                requests.post("http://%s:%s/api/v1/config"
+                                              % (c[0]["host"], c[0]["port"]),
+                                              json=body)
                                 # Set client configured
-                            except Exception:
+                            except Exception as e:
                                 exc = bool(LOG.isEnabledFor(logging.DEBUG))
-                                LOG.warning(
-                                    "Failed to update client config %s "
-                                    % c[0]["host"], exc_info=int(exc))
+                                msg = "Failed to update client config %s. "
+                                if exc:
+                                    LOG.exception(msg % c[0]["host"])
+                                else:
+                                    LOG.warning(msg % c[0]["host"] + str(e))
 
-                        self.db.server_config_meshed(config["id"])
+                        db.get().server_config_meshed(config["id"])
                     else:
                         LOG.info(no_changes_msg)
 

@@ -1,5 +1,6 @@
 # Copyright 2017: GoDaddy Inc.
 
+import copy
 import datetime
 import json
 import logging
@@ -8,7 +9,6 @@ import threading
 import elasticsearch
 
 from netmet import exceptions
-from netmet.utils import net
 
 
 LOG = logging.getLogger(__name__)
@@ -22,19 +22,17 @@ _DB = None
 _INIT_LOCK = threading.Lock()
 
 
-def get(elastic=None):
-    global _DB
-    with _INIT_LOCK:
-        if not _DB:
-            if not elastic:
-                raise exceptions.DBNotInitialized()
-
-            _DB = DB(elastic)
+def get():
+    if not _DB:
+        raise exceptions.DBNotInitialized()
     return _DB
 
 
-def init(elastic):
-    get(elastic=elastic)
+def init(own_url, elastic):
+    global _DB
+    with _INIT_LOCK:
+        if not _DB:
+            _DB = DB(own_url, elastic)
 
 
 def is_inited(elastic):
@@ -46,11 +44,16 @@ class DB(object):
     _CLIENT_PROPS = {
         "host": {"type": "keyword"},
         "ip": {"type": "ip"},
+        "port": {"type": "integer"},
         "mac": {"type": "keyword"},
         "az": {"type": "keyword"},
-        "dc": {"type": "keyword"},
-        "registered_at": {"type": "date"}
+        "dc": {"type": "keyword"}
     }
+
+    _CLIENT_CONF_PROPS = copy.deepcopy(_CLIENT_PROPS)
+    _CLIENT_CONF_PROPS.update({
+        "configured": {"type": "boolean"}
+    })
 
     _LATENCY_TYPE = {
         "type": "nested",
@@ -66,17 +69,18 @@ class DB(object):
             "index": {
                 "number_of_shards": 3,
                 "number_of_replicas": 3
-            },
-            "index.mapper.dynamic": False
+            }
         },
         "mappings": {
             "clients": {
-                "properties": _CLIENT_PROPS
+                "dynamic": "strict",
+                "properties": _CLIENT_CONF_PROPS
             },
             "config": {
+                "dynamic": "strict",
                 "properties": {
                     "timestamp": {"type": "date"},
-                    "cofig": {"type": "text"},
+                    "config": {"type": "text"},
                     "applied": {"type": "boolean"},
                     "meshed": {"type": "boolean"}
                 }
@@ -89,23 +93,25 @@ class DB(object):
             "index": {
                 "number_of_shards": 10,
                 "number_of_replicas": 1
-            },
-            "index.mapper.dynamic": False
+            }
         },
         "mappings": {
             "south-north": {
+                "dynamic": "strict",
                 "properties": {
                     "client": {"type": "nested", "properties": _CLIENT_PROPS},
                     "dest": {"type": "keyword"},
                     "protocol": {"type": "text"},
                     "timestamp": {"type": "date"},
                     "transmitted": {"type": "integer"},
+                    "packet_size": {"type": "integer"},
                     "lost": {"type": "integer"},
                     "latency": _LATENCY_TYPE,
                     "ret_code": {"type": "integer"}
                 }
             },
             "east-west": {
+                "dynamic": "strict",
                 "properties": {
                     "protocol": {"type": "text"},
                     "client_src": {
@@ -117,6 +123,7 @@ class DB(object):
                         "properties": _CLIENT_PROPS
                     },
                     "timestamp": {"type": "date"},
+                    "packet_size": {"type": "integer"},
                     "transmitted": {"type": "integer"},
                     "lost": {"type": "integer"},
                     "latency": _LATENCY_TYPE,
@@ -126,7 +133,8 @@ class DB(object):
         }
     }
 
-    def __init__(self, elastic):
+    def __init__(self, own_url, elastic):
+        self.own_url = own_url
         self.elastic_urls = elastic
         self.elastic = elasticsearch.Elasticsearch(elastic)
         self._ensure_elastic()
@@ -226,11 +234,9 @@ class DB(object):
 
     def lock_accuire(self, name, ttl):
         # release old one if ttl hit
-        addr, port = self.elastic_urls[0].rsplit(":", 1)
-
         data = {
             "updated_at": datetime.datetime.now().isoformat(),
-            "host": net.get_hostname(addr, int(port)),
+            "url": self.own_url,
             "ttl": ttl
         }
         try:
