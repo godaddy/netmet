@@ -1,12 +1,12 @@
 # Copyright 2017: GoDaddy Inc.
 
-import copy
 import datetime
 import json
 import logging
 import threading
 
 import elasticsearch
+import morph
 
 from netmet import exceptions
 
@@ -40,30 +40,6 @@ def is_inited(elastic):
 
 
 class DB(object):
-
-    _CLIENT_PROPS = {
-        "host": {"type": "keyword"},
-        "ip": {"type": "ip"},
-        "port": {"type": "integer"},
-        "mac": {"type": "keyword"},
-        "az": {"type": "keyword"},
-        "dc": {"type": "keyword"}
-    }
-
-    _CLIENT_CONF_PROPS = copy.deepcopy(_CLIENT_PROPS)
-    _CLIENT_CONF_PROPS.update({
-        "configured": {"type": "boolean"}
-    })
-
-    _LATENCY_TYPE = {
-        "type": "nested",
-        "properties": {
-            "min": {"type": "float"},
-            "max": {"type": "float"},
-            "avg": {"type": "float"}
-        }
-    }
-
     _CATALOG = {
         "settings": {
             "index": {
@@ -74,7 +50,15 @@ class DB(object):
         "mappings": {
             "clients": {
                 "dynamic": "strict",
-                "properties": _CLIENT_CONF_PROPS
+                "properties": {
+                    "host": {"type": "keyword"},
+                    "ip": {"type": "ip"},
+                    "port": {"type": "integer"},
+                    "mac": {"type": "keyword"},
+                    "az": {"type": "keyword"},
+                    "dc": {"type": "keyword"},
+                    "configured": {"type": "boolean"}
+                }
             },
             "config": {
                 "dynamic": "strict",
@@ -99,14 +83,19 @@ class DB(object):
             "south-north": {
                 "dynamic": "strict",
                 "properties": {
-                    "client": {"type": "nested", "properties": _CLIENT_PROPS},
+                    "client.host": {"type": "keyword"},
+                    "client.ip": {"type": "ip"},
+                    "client.port": {"type": "integer"},
+                    "client.mac": {"type": "keyword"},
+                    "client.az": {"type": "keyword"},
+                    "client.dc": {"type": "keyword"},
                     "dest": {"type": "keyword"},
                     "protocol": {"type": "text"},
                     "timestamp": {"type": "date"},
                     "transmitted": {"type": "integer"},
                     "packet_size": {"type": "integer"},
                     "lost": {"type": "integer"},
-                    "latency": _LATENCY_TYPE,
+                    "latency": {"type": "float"},
                     "ret_code": {"type": "integer"}
                 }
             },
@@ -114,19 +103,23 @@ class DB(object):
                 "dynamic": "strict",
                 "properties": {
                     "protocol": {"type": "text"},
-                    "client_src": {
-                        "type": "nested",
-                        "properties": _CLIENT_PROPS
-                    },
-                    "client_dest": {
-                        "type": "nested",
-                        "properties": _CLIENT_PROPS
-                    },
+                    "client_src.host": {"type": "keyword"},
+                    "client_src.ip": {"type": "ip"},
+                    "client_src.port": {"type": "integer"},
+                    "client_src.mac": {"type": "keyword"},
+                    "client_src.az": {"type": "keyword"},
+                    "client_src.dc": {"type": "keyword"},
+                    "client_dest.host": {"type": "keyword"},
+                    "client_dest.ip": {"type": "ip"},
+                    "client_dest.port": {"type": "integer"},
+                    "client_dest.mac": {"type": "keyword"},
+                    "client_dest.az": {"type": "keyword"},
+                    "client_dest.dc": {"type": "keyword"},
                     "timestamp": {"type": "date"},
                     "packet_size": {"type": "integer"},
                     "transmitted": {"type": "integer"},
                     "lost": {"type": "integer"},
-                    "latency": _LATENCY_TYPE,
+                    "latency": {"type": "float"},
                     "ret_code": {"type": "integer"}
                 }
             }
@@ -165,13 +158,13 @@ class DB(object):
         data = self.elastic.search(index="netmet_catalog", doc_type="clients",
                                    size=MAX_AMOUNT_OF_SERVERS)
 
-        return [x["_source"] for x in data["hits"]["hits"]]
+        return [morph.unflatten(x["_source"]) for x in data["hits"]["hits"]]
 
     def clients_set(self, catalog):
         bulk_body = []
         for c in catalog:
             bulk_body.append(json.dumps({"index": {}}))
-            bulk_body.append(json.dumps(c))
+            bulk_body.append(json.dumps(morph.flatten(c)))
 
         self.elastic.delete_by_query(index="netmet_catalog",
                                      doc_type="clients",
@@ -226,7 +219,7 @@ class DB(object):
         bulk_body = []
         for d in data:
             bulk_body.append(json.dumps({"index": {}}))
-            bulk_body.append(json.dumps(d))
+            bulk_body.append(json.dumps(morph.flatten(d)))
 
         # NOTE(boris-42): We should analyze Elastic response here.
         self.elastic.bulk(index="netmet_data", doc_type=doc_type,

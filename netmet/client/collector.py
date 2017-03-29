@@ -43,16 +43,13 @@ class Collector(object):
                 result = self.pinger.ping(host["ip"],
                                           timeout=self.timeout,
                                           packet_size=self.packet_size)
-                latency = result.rtt and result.rtt * 1000
                 self.queue.append({
                     "east-west": {
                         "client_src": self.client_host,
                         "client_dest": host,
                         "protocol": "icmp",
                         "timestamp": result.created_on,
-                        "latency": {
-                            "min": latency, "max": latency, "avg": latency
-                        },
+                        "latency": result.rtt and result.rtt * 1000,
                         "packet_size": result.packet_size,
                         "lost":  int(bool(result.ret_code.value)),
                         "transmitted": int(not bool(result.ret_code.value)),
