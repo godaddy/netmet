@@ -9,19 +9,22 @@ import futurist
 class LonelyWorker(object):
     _self = None
     _lock = threading.Lock()
-    _period = 40
+    _period = 60
 
     def __init__(self):
         """Do not call this method directly. Call create() instead."""
 
     @classmethod
     def create(cls, callback_after_job=None):
-        cls._self = cls()
-        cls._self._worker = futurist.ThreadPoolExecutor()
-        cls._self._death = threading.Event()
-        cls._self._worker.submit(cls._self._periodic_workder)
-        cls._self._force_update = False
-        cls._self._callback_after_job = callback_after_job or (lambda: True)
+        with cls._lock:
+            if not cls._self:
+                self = cls()
+                cls._self = self
+                self._worker = futurist.ThreadPoolExecutor()
+                self._death = threading.Event()
+                self._worker.submit(cls._self._periodic_workder)
+                self._force_update = False
+                self._callback_after_job = callback_after_job or (lambda: True)
 
     @classmethod
     def get(cls):
