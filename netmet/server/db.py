@@ -126,10 +126,12 @@ class DB(worker.LonelyWorker):
         cls._self._ensure_elastic()
         cls._self._ensure_schema()
         cls._self._rollover_data()
+        cls._self._initied = True
 
     def _job(self):
         try:
-            self._rollover_data()
+            if getattr(self, "_initied", False):
+                self._rollover_data()
         except Exception:
             LOG.exception("DB update failed")
 
