@@ -1,14 +1,15 @@
 # Copyright 2017: GoDaddy Inc.
 
+import copy
 import datetime
 import json
 import logging
-import threading
 
 import elasticsearch
 import morph
 
 from netmet import exceptions
+from netmet.utils import worker
 
 
 LOG = logging.getLogger(__name__)
@@ -18,28 +19,17 @@ LOG = logging.getLogger(__name__)
 MAX_AMOUNT_OF_SERVERS = 10000
 
 
-_DB = None
-_INIT_LOCK = threading.Lock()
-
-
 def get():
-    if not _DB:
-        raise exceptions.DBNotInitialized()
-    return _DB
+    return DB.get()
 
 
-def init(own_url, elastic):
-    global _DB
-    with _INIT_LOCK:
-        if not _DB:
-            _DB = DB(own_url, elastic)
+class DB(worker.LonelyWorker):
+    _period = 600   # every 10 minutes check needs to rollover index
 
+    _CATALOG_IDX = "netmet_catalog"
+    _DATA_ALIAS = "netmet_data"
+    _DATA_IDX = "<%s-{now/d}-000001>" % _DATA_ALIAS
 
-def is_inited(elastic):
-    return bool(_DB)
-
-
-class DB(object):
     _CATALOG = {
         "settings": {
             "index": {
@@ -126,12 +116,27 @@ class DB(object):
         }
     }
 
-    def __init__(self, own_url, elastic):
-        self.own_url = own_url
-        self.elastic_urls = elastic
-        self.elastic = elasticsearch.Elasticsearch(elastic)
-        self._ensure_elastic()
-        self._ensure_schema()
+    @classmethod
+    def create(cls, own_url, elastic):
+        super(DB, cls).create()
+
+        cls._self.own_url = own_url
+        cls._self.elastic_urls = elastic
+        cls._self.elastic = elasticsearch.Elasticsearch(elastic)
+        cls._self._ensure_elastic()
+        cls._self._ensure_schema()
+        cls._self._rollover_data()
+
+    def _job(self):
+        try:
+            self._rollover_data()
+        except Exception:
+            LOG.exception("DB update failed")
+
+    def _rollover_data(self):
+        body = {"conditions": {"max_age": "1d", "max_docs": 10000000}}
+        body.update(self._DATA)
+        self.elastic.indices.rollover(alias=self._DATA_ALIAS, body=body)
 
     def _ensure_elastic(self):
         self.elastic.info()
@@ -142,17 +147,24 @@ class DB(object):
             If there is no index this method creates it.
             If there is index but it has different schema process is shutdown
         """
-        indexes = {"netmet_catalog": DB._CATALOG, "netmet_data": DB._DATA}
+        try:
+            if not self.elastic.indices.exists(self._CATALOG_IDX):
+                self.elastic.indices.create(index=self._CATALOG_IDX,
+                                            body=self._CATALOG)
+        except elasticsearch.exceptions.ElasticsearchException as e:
+            if not self.elastic.indices.exists(self._CATALOG_IDX):
+                raise exceptions.DBInitFailure(elastic=self.elastic, message=e)
 
         try:
-            for idx, schema in indexes.iteritems():
-                if not self.elastic.indices.exists(idx):
-                    self.elastic.indices.create(index=idx, body=schema)
+            if not self.elastic.indices.exists_alias(self._DATA_ALIAS):
+                new_data = copy.deepcopy(self._DATA)
+                new_data["aliases"] = {self._DATA_ALIAS: {}}
+                self.elastic.indices.create(index=self._DATA_IDX,
+                                            body=new_data)
+
         except elasticsearch.exceptions.ElasticsearchException as e:
-            if not all(self.elastic.indices.exists(i) for i in indexes):
-                LOG.info("Creatation of index failed: %s" % e)
+            if not self.elastic.indices.exists_alias(name=self._DATA_ALIAS):
                 raise exceptions.DBInitFailure(elastic=self.elastic, message=e)
-            # TODO(boris-42): Check whatever shcema is the same.
 
     def clients_get(self):
         data = self.elastic.search(index="netmet_catalog", doc_type="clients",
