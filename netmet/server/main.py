@@ -155,6 +155,7 @@ def add_request_stats(response):
 def die():
     deployer.Deployer.destroy()
     mesher.Mesher.destroy()
+    db.DB.destroy()
 
 
 def load():
@@ -172,7 +173,7 @@ def load():
         raise ValueError("Set ELASTIC to list of urls of instances of cluster,"
                          " separated by comma.")
 
-    db.init(NETMET_OWN_URL, ELASTIC.split(","))
+    db.DB.create(NETMET_OWN_URL, ELASTIC.split(","))
     deployer.Deployer.create(mesher.Mesher.force_update)
     mesher.Mesher.create(NETMET_SERVER)
 
