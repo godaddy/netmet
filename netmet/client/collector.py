@@ -79,8 +79,9 @@ class Collector(object):
             self.running = True
 
         self.pinger.start()
-        self.pusher.start()
         callables = [(self.gen_periodic_ping(h), (), {}) for h in self.hosts]
+        if self.pusher:
+            self.pusher.start()
         executor_factory = lambda: futurist.ThreadPoolExecutor(max_workers=50)
         self.main_worker = futurist.periodics.PeriodicWorker(
             callables, executor_factory=executor_factory)
@@ -102,4 +103,5 @@ class Collector(object):
                 self.main_thread.join()
                 self.processing_thread.join()
                 self.pinger.stop()
-                self.pusher.stop()
+                if self.pusher:
+                    self.pusher.stop()
