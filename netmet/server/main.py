@@ -17,6 +17,7 @@ from netmet.utils import status
 
 LOG = logging.getLogger(__name__)
 app = flask.Flask(__name__, static_folder=None)
+app.wsgi_app = status.StatusMiddleware(app)
 
 
 @app.errorhandler(404)
@@ -28,12 +29,6 @@ def not_found(error):
 def internal_server_error(error):
     """500 Handle Internal Errors."""
     return flask.jsonify({"error": "Internal Server Error"}), 500
-
-
-@app.route("/api/v1/status", methods=["GET"])
-def get_status():
-    """Returns status of servers."""
-    return flask.jsonify(status.status()), 200
 
 
 @app.route("/api/v1/config", methods=["GET"])
@@ -144,12 +139,6 @@ def metrics_get(period):
 
 
 app = routing.add_routing_map(app, html_uri=None, json_uri="/")
-
-
-@app.after_request
-def add_request_stats(response):
-    status.count_requests(response.status_code)
-    return response
 
 
 def die():

@@ -11,6 +11,8 @@ from netmet.utils import status
 
 
 app = flask.Flask(__name__, static_folder=None)
+app.wsgi_app = status.StatusMiddleware(app)
+
 
 # TOOD(boris-42): Move this to the Collector (unify with server).
 _lock = threading.Lock()
@@ -38,13 +40,6 @@ def not_found(error):
 def internal_server_error(error):
     """500 Handle Internal Errors."""
     return flask.jsonify({"error": "Internal Server Error"}), 500
-
-
-@app.route("/api/v1/status", methods=['GET'])
-def get_status():
-    """Return uptime of API service."""
-    # Return status of service
-    return flask.jsonify(status.status()), 200
 
 
 @app.route("/api/v1/config", methods=['GET'])
@@ -124,12 +119,6 @@ def unregister():
 
 
 app = routing.add_routing_map(app, html_uri=None, json_uri="/")
-
-
-@app.after_request
-def add_request_stats(response):
-    status.count_requests(response.status_code)
-    return response
 
 
 def die():

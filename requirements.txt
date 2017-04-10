@@ -10,3 +10,4 @@ cachetools==2.0.0
 monotonic
 morph
 enum34
+webob
