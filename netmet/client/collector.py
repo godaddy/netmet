@@ -1,12 +1,15 @@
 # Copyright 2017: GoDaddy Inc.
 
 import collections
+import datetime
 import logging
 import threading
 import time
 
 import futurist
 import futurist.periodics
+import monotonic
+import requests
 
 from netmet.utils import ping
 from netmet.utils import pusher
@@ -61,6 +64,45 @@ class Collector(object):
 
         return ping_
 
+    def gen_periodic_http_ping(self, host):
+
+        @futurist.periodics.periodic(self.period)
+        def http_ping():
+            try:
+                started_at = monotonic.monotonic()
+                packet = {
+                    "east-west": {
+                        "client_src": self.client_host,
+                        "client_dest": host,
+                        "protocol": "http",
+                        "timestamp": datetime.datetime.now().isoformat(),
+                        "packet_size": 0,
+                        "latency": 0,
+                        "lost": 1,
+                        "transmitted": 0,
+                        "ret_code": 504
+                    }
+                }
+
+                r = requests.get("http://%s:%s" % (host["host"], host["port"]),
+                                 timeout=self.timeout)
+
+                packet["east-west"].update({
+                    "latency": (monotonic.monotonic() - started_at) * 1000,
+                    "packet_size": len(r.content),
+                    "lost":  int(r.status_code != 200),
+                    "transmitted": int(r.status_code == 200),
+                    "ret_code": r.status_code
+                })
+            except requests.exceptions.ConnectionError:
+                pass
+            except Exception:
+                LOG.exception("Collector failed to HTTP clinet")
+            finally:
+                self.queue.append(packet)
+
+        return http_ping
+
     def process_results(self):
         while self.queue or self.running:
             while self.queue:
@@ -79,8 +121,13 @@ class Collector(object):
             self.running = True
 
         self.pinger.start()
-        self.pusher.start()
-        callables = [(self.gen_periodic_ping(h), (), {}) for h in self.hosts]
+        if self.pusher:
+            self.pusher.start()
+        callables = []
+        for h in self.hosts:
+            callables.append((self.gen_periodic_ping(h), (), {}))
+            callables.append((self.gen_periodic_http_ping(h), (), {}))
+
         executor_factory = lambda: futurist.ThreadPoolExecutor(max_workers=50)
         self.main_worker = futurist.periodics.PeriodicWorker(
             callables, executor_factory=executor_factory)
@@ -102,4 +149,5 @@ class Collector(object):
                 self.main_thread.join()
                 self.processing_thread.join()
                 self.pinger.stop()
-                self.pusher.stop()
+                if self.pusher:
+                    self.pusher.stop()

@@ -236,8 +236,16 @@ class DB(worker.LonelyWorker):
             bulk_body.append(json.dumps(morph.flatten(d)))
 
         # NOTE(boris-42): We should analyze Elastic response here.
-        self.elastic.bulk(index="netmet_data", doc_type=doc_type,
-                          body="\n".join(bulk_body))
+        r = self.elastic.bulk(index="netmet_data", doc_type=doc_type,
+                              body="\n".join(bulk_body))
+
+        results = {}
+        for it in r["items"]:
+            k = it["index"]["status"]
+            results.setdefault(k, 0)
+            results[k] += 1
+
+        LOG.info("Metrics bulk insert result: %s" % results)
 
     def lock_accuire(self, name, ttl):
         # release old one if ttl hit
