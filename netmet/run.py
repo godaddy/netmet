@@ -10,7 +10,7 @@ from netmet.client import main as client_main
 from netmet.server import main as server_main
 
 
-def run():
+def load():
     level = logging.DEBUG if os.getenv("DEBUG") else logging.INFO
     logging.basicConfig(level=level)
 
@@ -31,7 +31,11 @@ def run():
 
     signal.signal(signal.SIGTERM, die)
     signal.signal(signal.SIGINT, die)
-    http_server.serve_forever()
+    return http_server
+
+
+def run():
+    load().serve_forever()
 
 
 if __name__ == "__main__":
