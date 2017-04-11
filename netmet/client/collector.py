@@ -37,26 +37,26 @@ class Collector(object):
         self.main_thread = None
         self.main_worker = None
         self.processing_thread = None
-        self.pinger = ping.Pinger()
 
     def gen_periodic_ping(self, host):
+        pinger = ping.Ping(host["ip"],
+                           timeout=self.timeout, packet_size=self.packet_size)
+
         @futurist.periodics.periodic(self.period)
         def ping_():
             try:
-                result = self.pinger.ping(host["ip"],
-                                          timeout=self.timeout,
-                                          packet_size=self.packet_size)
+                result = pinger.ping()
                 self.queue.append({
                     "east-west": {
                         "client_src": self.client_host,
                         "client_dest": host,
                         "protocol": "icmp",
-                        "timestamp": result.created_on,
-                        "latency": result.rtt and result.rtt * 1000,
-                        "packet_size": result.packet_size,
-                        "lost":  int(bool(result.ret_code.value)),
-                        "transmitted": int(not bool(result.ret_code.value)),
-                        "ret_code": result.ret_code.value
+                        "timestamp": result["timestamp"],
+                        "latency": result["rtt"],
+                        "packet_size": result["packet_size"],
+                        "lost":  int(bool(result["ret_code"])),
+                        "transmitted": int(not bool(result["ret_code"])),
+                        "ret_code": result["ret_code"]
                     }
                 })
             except Exception:
@@ -120,7 +120,6 @@ class Collector(object):
                 return False
             self.running = True
 
-        self.pinger.start()
         if self.pusher:
             self.pusher.start()
         callables = []
@@ -148,6 +147,5 @@ class Collector(object):
                 self.main_worker.wait()
                 self.main_thread.join()
                 self.processing_thread.join()
-                self.pinger.stop()
                 if self.pusher:
                     self.pusher.stop()
