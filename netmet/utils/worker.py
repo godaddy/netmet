@@ -1,9 +1,12 @@
 # Copyright 2017: GoDaddy Inc.
 
-import random
+import logging
 import threading
 
 import futurist
+
+
+LOG = logging.getLogger(__name__)
 
 
 class LonelyWorker(object):
@@ -32,7 +35,8 @@ class LonelyWorker(object):
 
     @classmethod
     def force_update(cls):
-        cls._self._force_update = True
+        if cls._self:
+            cls._self._force_update = True
 
     @classmethod
     def destroy(cls):
@@ -45,14 +49,20 @@ class LonelyWorker(object):
 
     def _periodic_workder(self):
         while not self._death.is_set():
-            if self._job():
-                self._callback_after_job()
+            try:
+                if self._job():
+                    self._callback_after_job()
 
-            t = 0
-            while t < self._period:
-                if self._force_update:
-                    self._force_update = False
-                    break
-                else:
-                    t += 1 + random.random()
-                    self._death.wait(1 + random.random())
+                t = 0
+                while t < self._period:
+                    if self._force_update:
+                        self._force_update = False
+                        break
+                    else:
+                        wait = min(self._period / 10.0, 1.0)
+                        t += wait
+                        self._death.wait(wait)
+
+            except Exception:
+                LOG.exception("LonelyWorker fails to do peridoic duties %s"
+                              % self)
