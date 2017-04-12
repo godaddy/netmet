@@ -18,17 +18,16 @@ class Glock(object):
 
     def __enter__(self):
         if self.accuired:
-            return
-
+            raise exceptions.GlobalLockException("Lock already in use %s"
+                                                 % self.name)
         if db.get().lock_accuire(self.name, self.ttl):
             self.accuired = True
         else:
             raise exceptions.GlobalLockException("Can't lock %s" % self.name)
 
     def __exit__(self, exception_type, exception_value, traceback):
-        if not self.accuired:
-            return
-
         if not db.get().lock_release(self.name):
             logging.warning("Can't release lock %(name)s."
                             % {"name": self.name})
+
+        self.accuired = False
