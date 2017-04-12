@@ -22,7 +22,6 @@ setup(name="netmet",
       license='Apache 2.0',
       entry_points={
           "console_scripts": [
-              "netmet-server = netmet.server.main:main",
-              "netmet-client = netmet.client.main:main"
+              "netmet = netmet.run:run"
           ]
       })
