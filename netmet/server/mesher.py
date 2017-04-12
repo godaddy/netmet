@@ -14,6 +14,9 @@ LOG = logging.getLogger(__name__)
 
 
 class Mesher(worker.LonelyWorker):
+    no_changes_msg = "Mesher: no changes in config detected."
+    new_config_msg = "Mesher detect new config: Remeshing clients."
+    update_failed_msg = "Mesher update failed."
 
     def __init__(self):
         """Do not use this method directly. Use create() instead."""
@@ -23,7 +26,8 @@ class Mesher(worker.LonelyWorker):
         super(Mesher, cls).create()
         cls._self.netmet_server_url = netmet_server_url
 
-    def _full_mesh(self, clients):
+    @classmethod
+    def _full_mesh(cls, clients):
         clients = [{k: x[k] for k in ["ip", "port", "host", "dc", "az"]}
                    for x in clients]
 
@@ -34,12 +38,9 @@ class Mesher(worker.LonelyWorker):
         get_conf = db.get().server_config_get
         is_meshed = lambda cfg: (not cfg or (cfg and not cfg["applied"]) or
                                  (cfg and cfg["meshed"]))
-
-        no_changes_msg = "Mesher: no changes in config detected."
-
         try:
             if is_meshed(get_conf()):
-                LOG.info(no_changes_msg)
+                LOG.info(self.no_changes_msg)
             else:
                 with eslock.Glock("update_config"):
                     # TODO(boris-42): Alogrithm should be a bit smarter
@@ -47,8 +48,7 @@ class Mesher(worker.LonelyWorker):
                     # clients.
                     config = get_conf()
                     if not is_meshed(config):
-                        LOG.info("Mesher detect new config: "
-                                 "Remeshing clients")
+                        LOG.info(self.new_config_msg)
                         for c in self._full_mesh(db.get().clients_get()):
                             # TODO(boris-42): Run this in parallel
                             try:
@@ -71,10 +71,10 @@ class Mesher(worker.LonelyWorker):
 
                         db.get().server_config_meshed(config["id"])
                     else:
-                        LOG.info(no_changes_msg)
+                        LOG.info(self.no_changes_msg)
 
         except exceptions.GlobalLockException:
             pass   # can't accuire lock, someone else is working on it
 
         except Exception:
-            LOG.exception("Mesher update failed")
+            LOG.exception(self.update_failed_msg)
