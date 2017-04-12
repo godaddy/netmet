@@ -18,6 +18,7 @@ LOG = logging.getLogger(__name__)
 
 
 class Collector(object):
+    pinger_failed_msg = "Pinger failed to ping"
 
     def __init__(self, netmet_server, client_host, hosts,
                  period=5, timeout=1, packet_size=55):
@@ -60,7 +61,7 @@ class Collector(object):
                     }
                 })
             except Exception:
-                LOG.exception("Pinger failed to ping")
+                LOG.exception(self.pinger_failed_msg)
 
         return ping_
 
@@ -97,7 +98,7 @@ class Collector(object):
             except requests.exceptions.ConnectionError:
                 pass
             except Exception:
-                LOG.exception("Collector failed to HTTP clinet")
+                LOG.exception("Collector failed to call another clinet API")
             finally:
                 self.queue.append(packet)
 
@@ -112,7 +113,7 @@ class Collector(object):
                 else:
                     print(item)   # netmet client standalone mode
 
-            time.sleep(0.5)
+            time.sleep(0.1)
 
     def start(self):
         with self.lock:
