@@ -14,39 +14,43 @@ LOG = logging.getLogger(__name__)
 
 class Pusher(object):
 
-    def __init__(self, url, period=10, max_count=1000):
+    def __init__(self, url, period=10, max_count=1000,
+                 dealey_between_requests=0.2, timeout=2):
         self.url = url
         self.period = period
+        self.dealey_between_requests = dealey_between_requests
+        self.timeout = timeout
         self.max_count = max_count
         self.objects = collections.deque()
         self._worker = None
+        self.session = requests.session()
 
     def _send(self):
+        body = []
         while not self._death.is_set():
-            body = []
-            count = 0
+            count = len(body)
             while self.objects and count < self.max_count:
                 count += 1
                 body.append(self.objects.popleft())
 
-            # Try to push data 3 times. Helps to avoid network blinks
-            # and netmet server failures
-            for i in xrange(3):
-                r = requests.post(self.url, json=body)
+            try:
+                r = self.session.post(self.url, json=body,
+                                      timeout=self.timeout)
                 if r.status_code == 201:
-                    break
-                if self._death.is_set():
-                    break
-            else:
-                LOG.warning("Can't push data to netmet server %s (status %s)"
-                            % (self.url, r.status_code))
-                self._death.wait(1)
-                # Put data back, in case of failure
-                self.objects.extendleft(body)
+                    body = []
+
+                error_status = r.status_code if r.status_code != 201 else None
+            except requests.exceptions.RequestException as e:
+                error_status = str(e)
+            finally:
+                if error_status:
+                    LOG.warning("Can't push data to %s (status %s)"
+                                % (self.url, error_status))
+
+            if not body and len(self.objects) < self.max_count:
                 break
 
-            if len(self.objects) < self.max_count:
-                break
+            self._death.wait(self.dealey_between_requests)
 
     def _send_peridoically(self):
         while not self._death.is_set():
