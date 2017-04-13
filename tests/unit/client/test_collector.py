@@ -12,7 +12,7 @@ from netmet.utils import pusher
 from tests.unit import test
 
 
-class MesherTestCase(test.TestCase):
+class CollectorTestCase(test.TestCase):
 
     def test_init_standalone(self):
         host = mock.MagicMock()
