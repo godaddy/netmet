@@ -158,12 +158,11 @@ class DB(worker.LonelyWorker):
                 raise exceptions.DBInitFailure(elastic=self.elastic, message=e)
 
         try:
-            if not self.elastic.indices.exists_alias(self._DATA_ALIAS):
+            if not self.elastic.indices.exists_alias(name=self._DATA_ALIAS):
                 new_data = copy.deepcopy(self._DATA)
                 new_data["aliases"] = {self._DATA_ALIAS: {}}
                 self.elastic.indices.create(index=self._DATA_IDX,
                                             body=new_data)
-
         except elasticsearch.exceptions.ElasticsearchException as e:
             if not self.elastic.indices.exists_alias(name=self._DATA_ALIAS):
                 raise exceptions.DBInitFailure(elastic=self.elastic, message=e)
