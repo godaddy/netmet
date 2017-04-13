@@ -23,11 +23,17 @@ _config = None
 def _destroy_collector():
     global _lock, _collector, _config
 
-    with _lock:
-        if _collector:
-            _collector.stop()
-            _collector = None
-            _config = None
+    locked = False
+    try:
+        locked = _lock.acquire(False)
+        if locked:
+            if _collector:
+                _collector.stop()
+                _collector = None
+                _config = None
+    finally:
+        if locked:
+            _lock.release()
 
 
 @app.errorhandler(404)
