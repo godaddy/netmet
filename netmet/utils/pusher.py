@@ -27,6 +27,7 @@ class Pusher(object):
 
     def _send(self):
         body = []
+        fails_in_row = 0
         while not self._death.is_set():
             count = len(body)
             while self.objects and count < self.max_count:
@@ -38,16 +39,22 @@ class Pusher(object):
                                       timeout=self.timeout)
                 if r.status_code == 201:
                     body = []
+                    fails_in_row = 0
 
                 error_status = r.status_code if r.status_code != 201 else None
             except requests.exceptions.RequestException as e:
                 error_status = str(e)
             finally:
                 if error_status:
+                    fails_in_row += 1
                     LOG.warning("Can't push data to %s (status %s)"
                                 % (self.url, error_status))
 
             if not body and len(self.objects) < self.max_count:
+                break
+
+            if fails_in_row > 2:
+                self.objects.extendleft(body[::-1])
                 break
 
             self._death.wait(self.dealey_between_requests)
