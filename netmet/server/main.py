@@ -97,6 +97,13 @@ def clients_list():
     return flask.jsonify(db.get().clients_get()), 200
 
 
+@app.route("/api/v1/clients/<host>/<port>", methods=["POST"])
+def client_refresh(host, port):
+    result = mesher.Mesher.get().refresh_client(host, int(port))
+    key = "message" if result[0] else "error"
+    return flask.jsonify({key: result[2]}), result[1]
+
+
 @app.route("/api/v1/metrics", methods=["POST", "PUT"])
 def metrics_add():
     """Stores metrics to elastic."""

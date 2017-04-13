@@ -17,6 +17,8 @@ class Mesher(worker.LonelyWorker):
     no_changes_msg = "Mesher: no changes in config detected."
     new_config_msg = "Mesher detect new config: Remeshing clients."
     update_failed_msg = "Mesher update failed."
+    lock_name = "update_config"
+    client_api = "http://%s:%s/api/v1/config"
 
     def __init__(self):
         """Do not use this method directly. Use create() instead."""
@@ -33,6 +35,47 @@ class Mesher(worker.LonelyWorker):
 
         for i in xrange(len(clients)):
             yield [clients[i], clients[:i] + clients[i + 1:]]
+
+    def _update_client(self, client, hosts):
+        try:
+            body = {
+                "netmet_server": self.netmet_server_url,
+                "client_host": client,
+                "hosts": hosts
+            }
+            requests.post(self.client_api % (client["host"], client["port"]),
+                          json=body)
+            # Set client configured
+        except Exception as e:
+            exc = bool(LOG.isEnabledFor(logging.DEBUG))
+            msg = "Failed to update client config %s. "
+            if exc:
+                LOG.exception(msg % client["host"])
+            else:
+                LOG.warning(msg % client["host"] + str(e))
+
+            return False, (500, msg % client["host"])
+
+        return True, 200, "Client updated"
+
+    def refresh_client(self, host, port):
+        lock_acuired = False
+        attempts = 0
+
+        while not lock_acuired and attempts < 3:
+            try:
+                with eslock.Glock("update_config"):
+                    for c in self._full_mesh(db.get().clients_get()):
+                        if c[0]["host"] == host and c[0]["port"] == port:
+                            return self._update_client(c[0], c[1])
+
+                    return False, 404, "Client not found"
+
+            except exceptions.GlobalLockException:
+                attempts += 1
+                self._death.wait(0.1)
+
+        return False, 500, "Couldn't accuire lock"
 
     def _job(self):
         get_conf = db.get().server_config_get
@@ -51,24 +94,7 @@ class Mesher(worker.LonelyWorker):
                         LOG.info(self.new_config_msg)
                         for c in self._full_mesh(db.get().clients_get()):
                             # TODO(boris-42): Run this in parallel
-                            try:
-                                body = {
-                                    "netmet_server": self.netmet_server_url,
-                                    "client_host": c[0],
-                                    "hosts": c[1]
-                                }
-                                requests.post("http://%s:%s/api/v1/config"
-                                              % (c[0]["host"], c[0]["port"]),
-                                              json=body)
-                                # Set client configured
-                            except Exception as e:
-                                exc = bool(LOG.isEnabledFor(logging.DEBUG))
-                                msg = "Failed to update client config %s. "
-                                if exc:
-                                    LOG.exception(msg % c[0]["host"])
-                                else:
-                                    LOG.warning(msg % c[0]["host"] + str(e))
-
+                            self._update_client(c[0], c[1])
                         db.get().server_config_meshed(config["id"])
                     else:
                         LOG.info(self.no_changes_msg)
