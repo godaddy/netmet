@@ -7,7 +7,7 @@ import threading
 import time
 
 import futurist
-import futurist.periodics
+import futurist.rejection
 import monotonic
 import requests
 
@@ -36,14 +36,12 @@ class Collector(object):
         self.queue = collections.deque()
         self.running = False
         self.main_thread = None
-        self.main_worker = None
         self.processing_thread = None
 
     def gen_periodic_ping(self, host):
         pinger = ping.Ping(host["ip"],
                            timeout=self.timeout, packet_size=self.packet_size)
 
-        @futurist.periodics.periodic(self.period)
         def ping_():
             try:
                 result = pinger.ping()
@@ -67,7 +65,6 @@ class Collector(object):
 
     def gen_periodic_http_ping(self, host):
 
-        @futurist.periodics.periodic(self.period)
         def http_ping():
             try:
                 started_at = monotonic.monotonic()
@@ -115,6 +112,30 @@ class Collector(object):
 
             time.sleep(0.1)
 
+    def _job(self):
+        callables = []
+        for i, h in enumerate(self.hosts):
+            callables.append(self.gen_periodic_ping(h))
+        for i, h in enumerate(self.hosts):
+            callables.append(self.gen_periodic_http_ping(h))
+
+        period = self.period / float(len(callables))
+        pool = futurist.ThreadPoolExecutor(
+            max_workers=50,
+            check_and_reject=futurist.rejection.reject_when_reached(50))
+
+        while self.running:
+            for item in callables:
+                while self.running:
+                    try:
+                        pool.submit(item)
+                        break
+                    except futurist.RejectedSubmission:
+                        LOG.warning("Collector: Feed me! Mreee threads!")
+                        time.sleep(period)
+
+                time.sleep(period)
+
     def start(self):
         with self.lock:
             if self.running:
@@ -123,15 +144,8 @@ class Collector(object):
 
         if self.pusher:
             self.pusher.start()
-        callables = []
-        for h in self.hosts:
-            callables.append((self.gen_periodic_ping(h), (), {}))
-            callables.append((self.gen_periodic_http_ping(h), (), {}))
 
-        executor_factory = lambda: futurist.ThreadPoolExecutor(max_workers=50)
-        self.main_worker = futurist.periodics.PeriodicWorker(
-            callables, executor_factory=executor_factory)
-        self.main_thread = threading.Thread(target=self.main_worker.start)
+        self.main_thread = threading.Thread(target=self._job)
         self.main_thread.daemon = True
         self.main_thread.start()
 
@@ -144,8 +158,6 @@ class Collector(object):
         with self.lock:
             if self.running:
                 self.running = False
-                self.main_worker.stop()
-                self.main_worker.wait()
                 self.main_thread.join()
                 self.processing_thread.join()
                 if self.pusher:

@@ -4,7 +4,6 @@ import collections
 import StringIO
 import time
 
-import futurist.periodics
 import mock
 
 from netmet.client import collector
@@ -130,29 +129,20 @@ class CollectorTestCase(test.TestCase):
     @mock.patch("netmet.client.collector.Collector.gen_periodic_http_ping")
     def test_start_and_stop_no_pusher(self, mock_gen_ping, mock_gen_http_ping):
 
-        @futurist.periodics.periodic(1)
-        def noop():
-            pass
-
-        mock_gen_ping.return_value = noop
-        mock_gen_http_ping.return_value = noop
-
-        c = collector.Collector(None, {}, [1, 2, 3])
+        mock_gen_ping.return_value = str
+        mock_gen_http_ping.return_value = str
+        c = collector.Collector(None, {}, [1, 2, 3], period=0.1)
         c.start()
-        time.sleep(0.1)
+        time.sleep(0.05)
         c.stop()
 
     @mock.patch("netmet.client.collector.Collector.gen_periodic_ping")
     @mock.patch("netmet.client.collector.Collector.gen_periodic_http_ping")
     def test_start_and_stop_w_pusher(self, mock_gen_ping, mock_gen_http_ping):
 
-        @futurist.periodics.periodic(1)
-        def noop():
-            pass
-
-        mock_gen_ping.return_value = noop
-        mock_gen_http_ping.return_value = noop
-        c = collector.Collector("netmet_url", {}, [1, 2, 3])
+        mock_gen_ping.return_value = str
+        mock_gen_http_ping.return_value = str
+        c = collector.Collector("netmet_url", {}, [1, 2, 3], period=0.1)
         c.start()
-        time.sleep(0.1)
+        time.sleep(0.05)
         c.stop()
