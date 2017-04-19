@@ -10,8 +10,8 @@ from netmet.client import collector
 from netmet.utils import status
 
 
-app = flask.Flask(__name__, static_folder=None)
-app.wsgi_app = status.StatusMiddleware(app)
+APP = flask.Flask(__name__, static_folder=None)
+APP.wsgi_app = status.StatusMiddleware(APP)
 
 
 # TOOD(boris-42): Move this to the Collector (unify with server).
@@ -36,19 +36,19 @@ def _destroy_collector():
             _lock.release()
 
 
-@app.errorhandler(404)
+@APP.errorhandler(404)
 def not_found(error):
     """404 Page in case of failures."""
     return flask.jsonify({"error": "Not Found"}), 404
 
 
-@app.errorhandler(500)
+@APP.errorhandler(500)
 def internal_server_error(error):
     """500 Handle Internal Errors."""
     return flask.jsonify({"error": "Internal Server Error"}), 500
 
 
-@app.route("/api/v1/config", methods=['GET'])
+@APP.route("/api/v1/config", methods=['GET'])
 def get_config():
     """Returns netmet config."""
     global _config
@@ -59,7 +59,7 @@ def get_config():
         return flask.jsonify({"error": "Netmet is not configured"}), 404
 
 
-@app.route("/api/v1/config", methods=['POST'])
+@APP.route("/api/v1/config", methods=['POST'])
 def set_config():
     """Recreates collector instance providing list of new hosts."""
     global _lock, _collector, _config
@@ -117,14 +117,14 @@ def set_config():
     return flask.jsonify({"message": "Succesfully update netmet config"}), 201
 
 
-@app.route("/api/v1/unregister", methods=['POST'])
+@APP.route("/api/v1/unregister", methods=['POST'])
 def unregister():
     """Stops collector system."""
     _destroy_collector()
     return flask.jsonify({"message": "Netmet clinet is unregistered."}), 201
 
 
-app = routing.add_routing_map(app, html_uri=None, json_uri="/")
+APP = routing.add_routing_map(APP, html_uri=None, json_uri="/")
 
 
 def die():
@@ -132,4 +132,5 @@ def die():
 
 
 def load():
-    return app
+
+    return APP
