@@ -154,7 +154,7 @@ def die():
     db.DB.destroy()
 
 
-def load():
+def load(port):
     NETMET_SERVER = os.getenv("NETMET_SERVER_URL")
     if not NETMET_SERVER:
         raise ValueError("Set NETMET_SERVER_URL to NetMet server public "

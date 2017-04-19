@@ -7,6 +7,7 @@ from flask_helpers import routing
 import jsonschema
 
 from netmet.client import collector
+from netmet.client import conf
 from netmet.utils import status
 
 
@@ -111,6 +112,9 @@ def set_config():
             _collector.stop()
 
         _config = data
+        conf.restore_url_set(data["netmet_server"],
+                             data["client_host"]["host"],
+                             data["client_host"]["port"])
         _collector = collector.Collector(**data)
         _collector.start()
 
@@ -120,6 +124,7 @@ def set_config():
 @APP.route("/api/v1/unregister", methods=['POST'])
 def unregister():
     """Stops collector system."""
+    conf.restore_url_clear(APP.port)
     _destroy_collector()
     return flask.jsonify({"message": "Netmet clinet is unregistered."}), 201
 
@@ -131,6 +136,7 @@ def die():
     _destroy_collector()
 
 
-def load():
+def load(port):
+    conf.restore.async(port)
 
     return APP

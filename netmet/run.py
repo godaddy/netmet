@@ -8,6 +8,7 @@ from gevent import wsgi
 
 from netmet.client import main as client_main
 from netmet.server import main as server_main
+from netmet.utils import asyncer
 
 
 def load():
@@ -21,13 +22,15 @@ def load():
     else:
         mode = client_main
 
-    app = mode.load()
-    http_server = wsgi.WSGIServer(
-        (os.getenv("HOST", ""), int(os.getenv("PORT", 5000))), app)
+    port = int(os.getenv("PORT", 5000))
+    app = mode.load(port)
+    http_server = wsgi.WSGIServer((os.getenv("HOST", ""), port), app)
+    app.port = port
 
     def die(*args, **kwargs):
         http_server.stop()
         mode.die()
+        asyncer.die()
 
     signal.signal(signal.SIGTERM, die)
     signal.signal(signal.SIGINT, die)

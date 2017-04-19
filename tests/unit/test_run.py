@@ -23,7 +23,7 @@ class RunTestCase(test.TestCase):
     @mock.patch("netmet.server.main.load")
     def test_load_server_app(self, mock_load):
         http_server = run.load()
-        mock_load.assert_called_once_with()
+        mock_load.assert_called_once_with(5000)
         self.assertEqual(mock_load.call_count, 1)
         self.assertIsInstance(http_server, wsgi.WSGIServer)
         self.assertEqual("", http_server.server_host)
@@ -33,7 +33,7 @@ class RunTestCase(test.TestCase):
     @mock.patch("netmet.client.main.load")
     def test_load_client_app(self, mock_load):
         http_server = run.load()
-        mock_load.assert_called_once_with()
+        mock_load.assert_called_once_with(5000)
         self.assertEqual(mock_load.call_count, 1)
         self.assertIsInstance(http_server, wsgi.WSGIServer)
         self.assertEqual("", http_server.server_host)
