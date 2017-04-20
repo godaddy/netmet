@@ -28,9 +28,12 @@ def load():
     app.port = port
 
     def die(*args, **kwargs):
-        http_server.stop()
+        if os.getenv("APP") == "server":
+            http_server.stop()
         mode.die()
         asyncer.die()
+        if os.getenv("APP") == "client":
+            http_server.stop()
 
     signal.signal(signal.SIGTERM, die)
     signal.signal(signal.SIGINT, die)

@@ -19,6 +19,7 @@ APP.wsgi_app = status.StatusMiddleware(APP)
 _lock = threading.Lock()
 _collector = None
 _config = None
+_DEAD = False
 
 
 def _destroy_collector():
@@ -64,6 +65,9 @@ def get_config():
 def set_config():
     """Recreates collector instance providing list of new hosts."""
     global _lock, _collector, _config
+
+    if _DEAD:
+        flask.abort(500)
 
     schema = {
         "type": "object",
@@ -133,6 +137,8 @@ APP = routing.add_routing_map(APP, html_uri=None, json_uri="/")
 
 
 def die():
+    global _DEAD
+    _DEAD = True
     _destroy_collector()
 
 
