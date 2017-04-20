@@ -3,6 +3,7 @@
 import logging
 import os
 import signal
+import sys
 
 from gevent import wsgi
 
@@ -17,7 +18,8 @@ LOG = logging.getLogger(__name__)
 def load():
     level = logging.DEBUG if os.getenv("DEBUG") else logging.INFO
     logging.basicConfig(level=level,
-                        format='%(asctime)s %(levelname)-8s %(message)s')
+                        format="%(asctime)s %(levelname)-8s %(message)s",
+                        stream=sys.stdout)
 
     if not os.getenv("APP") or os.getenv("APP") not in ["server", "client"]:
         raise ValueError("Set APP env variable to 'server' or 'client'")
