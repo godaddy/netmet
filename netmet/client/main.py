@@ -16,26 +16,26 @@ APP.wsgi_app = status.StatusMiddleware(APP)
 
 
 # TOOD(boris-42): Move this to the Collector (unify with server).
-_lock = threading.Lock()
-_collector = None
-_config = None
+_LOCK = threading.Lock()
+_COLLECTOR = None
+_CONFIG = None
 _DEAD = False
 
 
 def _destroy_collector():
-    global _lock, _collector, _config
+    global _LOCK, _COLLECTOR, _CONFIG
 
     locked = False
     try:
-        locked = _lock.acquire(False)
+        locked = _LOCK.acquire(False)
         if locked:
-            if _collector:
-                _collector.stop()
-                _collector = None
-                _config = None
+            if _COLLECTOR:
+                _COLLECTOR.stop()
+                _COLLECTOR = None
+                _CONFIG = None
     finally:
         if locked:
-            _lock.release()
+            _LOCK.release()
 
 
 @APP.errorhandler(404)
@@ -53,10 +53,10 @@ def internal_server_error(error):
 @APP.route("/api/v1/config", methods=['GET'])
 def get_config():
     """Returns netmet config."""
-    global _config
+    global _CONFIG
 
-    if _config:
-        return flask.jsonify({"config": _config}), 200
+    if _CONFIG:
+        return flask.jsonify({"config": _CONFIG}), 200
     else:
         return flask.jsonify({"error": "Netmet is not configured"}), 404
 
@@ -64,7 +64,7 @@ def get_config():
 @APP.route("/api/v1/config", methods=['POST'])
 def set_config():
     """Recreates collector instance providing list of new hosts."""
-    global _lock, _collector, _config
+    global _LOCK, _COLLECTOR, _CONFIG
 
     if _DEAD:
         flask.abort(500)
@@ -111,16 +111,16 @@ def set_config():
     except (ValueError, jsonschema.exceptions.ValidationError) as e:
         return flask.jsonify({"error": "Bad request: %s" % e}), 400
 
-    with _lock:
-        if _collector:
-            _collector.stop()
+    with _LOCK:
+        if _COLLECTOR:
+            _COLLECTOR.stop()
 
-        _config = data
+        _CONFIG = data
         conf.restore_url_set(data["netmet_server"],
                              data["client_host"]["host"],
                              data["client_host"]["port"])
-        _collector = collector.Collector(**data)
-        _collector.start()
+        _COLLECTOR = collector.Collector(**data)
+        _COLLECTOR.start()
 
     return flask.jsonify({"message": "Succesfully update netmet config"}), 201
 
