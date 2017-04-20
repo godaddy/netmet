@@ -184,7 +184,8 @@ class DB(worker.LonelyWorker):
                                      body={"query": {"match_all": {}}})
 
         self.elastic.bulk(index="netmet_catalog", doc_type="clients",
-                          body="\n".join(bulk_body))
+                          body="\n".join(bulk_body),
+                          refresh="true")
 
     def server_config_get(self, only_applied=False):
         query = {
@@ -213,17 +214,20 @@ class DB(worker.LonelyWorker):
             "timestamp": datetime.datetime.now().isoformat()
         }
         self.elastic.index(index="netmet_catalog",
-                           doc_type="config", body=body)
+                           doc_type="config", body=body,
+                           refresh="true")
 
-    def server_config_apply(self, id):
+    def server_config_apply(self, id_):
         self.elastic.update(index="netmet_catalog",
-                            doc_type="config", id=id,
-                            body={"doc": {"applied": True}})
+                            doc_type="config", id=id_,
+                            body={"doc": {"applied": True}},
+                            refresh="true")
 
-    def server_config_meshed(self, id):
+    def server_config_meshed(self, id_):
         self.elastic.update(index="netmet_catalog",
-                            doc_type="config", id=id,
-                            body={"doc": {"meshed": True}})
+                            doc_type="config", id=id_,
+                            body={"doc": {"meshed": True}},
+                            refresh="true")
 
     def metrics_add(self, doc_type, data):
         if doc_type not in ["east-west", "south-north"]:

@@ -3,7 +3,6 @@
 import json
 import logging
 import os
-import time
 
 import flask
 from flask_helpers import routing
@@ -84,9 +83,6 @@ def config_set():
         return flask.jsonify({"error": "Bad request: %s" % e}), 400
 
     db.get().server_config_add(config)
-    # TODO(boris-42): Sleep for one second to make sure that elastic index
-    #                 new conf in future waiting logic should go do db layer
-    time.sleep(1)
     deployer.Deployer.force_update()
     return flask.jsonify({"message": "Config was updated"}), 201
 
