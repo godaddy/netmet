@@ -1,13 +1,16 @@
 # Copyright 2017: GoDaddy Inc.
 
+import functools
 import json
 import logging
 import os
 
+import elasticsearch
 import flask
 from flask_helpers import routing
 import jsonschema
 
+from netmet import exceptions
 from netmet.server import db
 from netmet.server import deployer
 from netmet.server import mesher
@@ -30,7 +33,23 @@ def internal_server_error(error):
     return flask.jsonify({"error": "Internal Server Error"}), 500
 
 
+def db_errors_handler(f):
+
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except exceptions.DBRecordNotFound as e:
+            return flask.jsonify({"error": str(e)}), 404
+        except (exceptions.DBConflict,
+                elasticsearch.exceptions.ConflictError) as e:
+            return flask.jsonify({"error": str(e)}), 409
+
+    return wrapper
+
+
 @app.route("/api/v1/config", methods=["GET"])
+@db_errors_handler
 def config_get():
     """Returns netmet server configuration."""
     config = db.get().server_config_get()
@@ -43,6 +62,7 @@ def config_get():
 
 
 @app.route("/api/v1/config", methods=["POST"])
+@db_errors_handler
 def config_set():
     """Sets netmet server configuration."""
 
@@ -62,7 +82,8 @@ def config_set():
                                 "port": {"type": "integer"},
                                 "mac": {"type": "string"},
                                 "az": {"type": "string"},
-                                "dc": {"type": "string"}
+                                "dc": {"type": "string"},
+                                "hypervisor": {"type": "string"}
                             },
                             "required": ["host", "ip", "az", "dc"],
                             "additionalProperties": False
@@ -88,12 +109,14 @@ def config_set():
 
 
 @app.route("/api/v1/clients", methods=["GET"])
+@db_errors_handler
 def clients_list():
     """List all hosts."""
     return flask.jsonify(db.get().clients_get()), 200
 
 
 @app.route("/api/v1/clients/<host>/<port>", methods=["POST"])
+@db_errors_handler
 def client_refresh(host, port):
     result = mesher.Mesher.get().refresh_client(host, int(port))
     key = "message" if result[0] else "error"
@@ -101,6 +124,7 @@ def client_refresh(host, port):
 
 
 @app.route("/api/v1/metrics", methods=["POST", "PUT"])
+@db_errors_handler
 def metrics_add():
     """Stores metrics to elastic."""
 
@@ -136,9 +160,77 @@ def metrics_add():
 
 
 @app.route("/api/v1/metrics/<period>", methods=["GET"])
+@db_errors_handler
 def metrics_get(period):
     """Get metrics for period."""
     return flask.jsonify({"message": "noop"}), 200
+
+
+@app.route("/api/v1/events", methods=["GET"])
+@db_errors_handler
+def events_list():
+    offset = flask.request.args.get('offset', 0)
+    limit = flask.request.args.get('limit', 100)
+    active_only = flask.request.args.get('active_only')
+    return flask.jsonify(db.get().events_list(offset, limit, active_only)), 200
+
+
+@app.route("/api/v1/events/<event_id>", methods=["GET"])
+@db_errors_handler
+def event_get(event_id):
+    return flask.jsonify(db.event_get(event_id)[1]), 200
+
+
+@app.route("/api/v1/events/<event_id>", methods=["POST"])
+@db_errors_handler
+def event_create(event_id):
+    """If event already exists it recreates it."""
+    schema = {
+        "type": "object",
+
+        "definitions": {
+            "traffic": {
+                "type": "object",
+                "properties": {
+                    "type": {"enum": ["host", "az", "dc"]},
+                    "value": {"type": "string"}
+                },
+                "required": ["type", "value"]
+            }
+        },
+        "properties": {
+            "name": {"type": "string"},
+            "started_at": {"type": "string"},
+            "finished_at": {"type": "string"},
+            "traffic_from": {"$ref": "#/definitions/traffic"},
+            "traffic_to": {"$ref": "#/definitions/traffic"}
+        },
+        "required": ["started_at", "name"],
+        "additionalProperties": False
+    }
+    try:
+        data = flask.request.get_json(silent=False, force=True)
+        jsonschema.validate(data, schema)
+
+    except (ValueError, jsonschema.exceptions.ValidationError) as e:
+        return flask.jsonify({"error": "Bad request: %s" % e}), 400
+
+    db.get().event_create(event_id, data)
+    return flask.jsonify({"message": "Event created %s" % event_id}), 201
+
+
+@app.route("/api/v1/events/<event_id>/_stop", methods=["POST"])
+@db_errors_handler
+def event_stop(event_id):
+    db.get().event_stop(event_id)
+    return flask.jsonify({"message": "event %s stopped" % event_id}), 200
+
+
+@app.route("/api/v1/events/<event_id>", methods=["DELETE"])
+@db_errors_handler
+def event_delete(event_id):
+    db.get().event_delete(event_id)
+    return flask.jsonify({"message": "event %s deleted" % event_id}), 202
 
 
 app = routing.add_routing_map(app, html_uri=None, json_uri="/")

@@ -27,5 +27,13 @@ class DBNotInitialized(NetmetException):
     msg_fmt = "Try to use DB before it's initialized: %(message)s"
 
 
+class DBRecordNotFound(NetmetException):
+    msg_fmt = "Didn't find record in DB: %(record)s"
+
+
+class DBConflict(NetmetException):
+    msg_fmt = "DB Conflict: %(message)s"
+
+
 class DBInitFailure(NetmetException):
     msg_fmt = "Can't initialize DB %(elastic)s: %(message)s"

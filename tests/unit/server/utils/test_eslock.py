@@ -9,7 +9,7 @@ from netmet.server.utils import eslock
 from tests.unit import test
 
 
-class PingTestCase(test.TestCase):
+class EslockTestCase(test.TestCase):
 
     def test_init(self):
         g = eslock.Glock("some_name")
