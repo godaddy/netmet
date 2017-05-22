@@ -22,7 +22,7 @@ def restore(port):
     if not url:
         return
 
-    restore._die.wait(0.5)   # note(boris-42): Let NetMet client start
+    restore._die.wait(0.25)   # note(boris-42): Let NetMet client start
     while not restore._die.is_set():
         try:
             r = requests.post(url)
@@ -36,6 +36,9 @@ def restore(port):
             LOG.exception("Something went wrong during the attempt "
                           "to call netmet server to referesh config.")
             return
+
+        if url != restore_url_get(port):
+            break
 
         restore._die.wait(1)
 
@@ -64,8 +67,11 @@ def restore_url_set(netmet_server, host, port):
             os.makedirs(_RUNTIME_CONF_DIR)
 
         with open(_RUNTIME_CONF_FILE % port, "w+") as f:
-            data = {"server": netmet_server, "host": host, "port": port}
-            json.dump({"refresh_conf_url": _RESTORE_API % data}, f)
+            if netmet_server:
+                data = {"server": netmet_server, "host": host, "port": port}
+                json.dump({"refresh_conf_url": _RESTORE_API % data}, f)
+            else:
+                json.dump({"refresh_conf_url": None}, f)
 
     except Exception:
         LOG.exception("Failed to store runntime info refresh_conf_url")

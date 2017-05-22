@@ -25,7 +25,7 @@ class ConfTestCase(test.TestCase):
         ]
         mock_post.side_effect = Exception
         conf.restore(100)
-        mock_wait.assert_called_once_with(0.5)
+        mock_wait.assert_called_once_with(0.25)
 
     @mock.patch("netmet.client.conf.LOG.warning")
     @mock.patch("netmet.client.conf.requests.post")
@@ -33,22 +33,26 @@ class ConfTestCase(test.TestCase):
     @mock.patch("netmet.client.conf.open", create=True)
     def test_restore_success_scenario(self, mock_open, mock_wait,
                                       mock_post, mock_warn):
-        mock_open.side_effect = [mock.mock_open(
-            read_data=json.dumps({"refresh_conf_url": "aa"})).return_value
-        ]
+
+        data = json.dumps({"refresh_conf_url": "aa"})
+        mock_open.side_effect = [mock.mock_open(read_data=data).return_value,
+                                 mock.mock_open(read_data=data).return_value,
+                                 mock.mock_open(read_data=data).return_value]
+
         mock_post.side_effect = [
             requests.exceptions.RequestException,
             mock.Mock(status_code=500),
             mock.Mock(status_code=200)
         ]
         conf.restore(50)
-        mock_open.assert_called_once_with(conf._RUNTIME_CONF_FILE % 50, "rw")
+        mock_open.assert_has_calls(
+            [mock.call(conf._RUNTIME_CONF_FILE % 50, "rw")] * 3)
         self.assertEqual(1, mock_warn.call_count)
         mock_post.assert_has_calls(
             [mock.call("aa"), mock.call("aa"), mock.call("aa")]
         )
         mock_wait.assert_has_calls(
-            [mock.call(0.5), mock.call(1), mock.call(1)])
+            [mock.call(0.25), mock.call(1), mock.call(1)])
 
     @mock.patch("netmet.client.conf.os.remove")
     @mock.patch("netmet.client.conf.requests.post")
@@ -62,7 +66,7 @@ class ConfTestCase(test.TestCase):
         mock_post.side_effect = [mock.Mock(status_code=404)]
         conf.restore(50)
         mock_remove.assert_called_once_with(conf._RUNTIME_CONF_FILE % 50)
-        mock_wait.assert_called_once_with(0.5)
+        mock_wait.assert_called_once_with(0.25)
 
     @mock.patch("netmet.client.conf.open", create=True)
     def test_restore_url_get(self, mock_open):
