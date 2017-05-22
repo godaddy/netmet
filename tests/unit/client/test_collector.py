@@ -15,31 +15,37 @@ class CollectorTestCase(test.TestCase):
 
     def test_init_standalone(self):
         host = mock.MagicMock()
-        hosts = [mock.MagicMock()]
+        tasks = [mock.MagicMock()]
 
-        c = collector.Collector(None, host, hosts)
-        self.assertEqual(host, c.client_host)
+        c = collector.Collector(None, host, tasks)
+        self.assertEqual(tasks, c.tasks)
         self.assertEqual(5, c.period)
-        self.assertEqual(1, c.timeout)
-        self.assertEqual(55, c.packet_size)
         self.assertIsNone(c.pusher)
 
     def test_init_full(self):
         host = mock.MagicMock()
-        hosts = [mock.MagicMock()]
+        tasks = [mock.MagicMock()]
 
-        c = collector.Collector("http://netmet_url", host, hosts,
-                                period=10, timeout=2, packet_size=5)
-        self.assertEqual(host, c.client_host)
+        c = collector.Collector("http://netmet_url", host, tasks, period=10)
+        self.assertEqual(tasks, c.tasks)
         self.assertEqual(10, c.period)
-        self.assertEqual(2, c.timeout)
-        self.assertEqual(5, c.packet_size)
         self.assertIsInstance(c.pusher, pusher.Pusher)
 
     @mock.patch("netmet.client.collector.ping.Ping.ping")
-    def test_gen_periodic_ping(self, mock_ping):
+    def test_gen_periodic_ping_east_west(self, mock_ping):
         client_host = mock.MagicMock()
-        dest_host = {"ip": "1.1.1.1"}
+        task = {
+            "east-west": {
+                "dest": {
+                    "ip": "1.1.1.1"
+                },
+                "settings": {
+                    "timeout": 5,
+                    "packet_size": 55
+                }
+            }
+        }
+
         mock_ping.return_value = {
             "ret_code": 0,
             "rtt": 10,
@@ -48,11 +54,11 @@ class CollectorTestCase(test.TestCase):
         }
 
         c = collector.Collector("some_url", client_host, [])
-        c.gen_periodic_ping(dest_host)()
+        c.gen_periodic_ping(task)()
         self.assertEqual(1, len(c.queue))
         expected = {
             "client_src": client_host,
-            "client_dest": dest_host,
+            "client_dest": task["east-west"]["dest"],
             "protocol": "icmp",
             "timestamp": "ttt",
             "latency": 10,
@@ -63,12 +69,51 @@ class CollectorTestCase(test.TestCase):
         }
         self.assertEqual(expected, c.queue.pop()["east-west"])
 
+    @mock.patch("netmet.client.collector.ping.Ping.ping")
+    def test_gen_periodic_ping_south_north(self, mock_ping):
+        client_host = mock.MagicMock()
+        task = {
+            "south-north": {
+                "dest": "1.1.1.1",
+                "settings": {
+                    "timeout": 5,
+                    "packet_size": 55
+                }
+            }
+        }
+
+        mock_ping.return_value = {
+            "ret_code": 0,
+            "rtt": 10,
+            "timestamp": "ttt",
+            "packet_size": 55
+        }
+
+        c = collector.Collector("some_url", client_host, [])
+        c.gen_periodic_ping(task)()
+        self.assertEqual(1, len(c.queue))
+        expected = {
+            "client_src": client_host,
+            "dest": task["south-north"]["dest"],
+            "protocol": "icmp",
+            "timestamp": "ttt",
+            "latency": 10,
+            "packet_size": 55,
+            "lost": 0,
+            "transmitted": 1,
+            "ret_code": 0
+        }
+        self.assertEqual(expected, c.queue.pop()["south-north"])
+
     @mock.patch("netmet.client.collector.LOG")
     @mock.patch("netmet.client.collector.ping.Ping.ping")
     def test_gen_periodic_ping_raises(self, mock_ping, mock_log):
         c = collector.Collector("some_url", {}, [])
         mock_ping.side_effect = Exception
-        ping_ = c.gen_periodic_ping({"ip": "1.2.3.4"})
+        ping_ = c.gen_periodic_ping({"east-west": {
+            "dest": {"ip": "1.2.3.4"},
+            "settings": {"packet_size": 55, "timeout": 1}
+        }})
         ping_()
 
         mock_log.exception.assert_called_once_with(c.pinger_failed_msg)
@@ -77,22 +122,35 @@ class CollectorTestCase(test.TestCase):
     @mock.patch("netmet.client.collector.datetime")
     @mock.patch("netmet.client.collector.monotonic.monotonic")
     @mock.patch("netmet.client.collector.requests.get")
-    def test_gen_periodic_http_ping(self, mock_get, mock_monotonic,
-                                    mock_datetime):
+    def test_gen_periodic_http_ping_east_west(self, mock_get, mock_monotonic,
+                                              mock_datetime):
         client_host = mock.MagicMock()
-        dest_host = {"ip": "1.1.1.1", "host": "1.2.3.4", "port": 80}
+        task = {
+            "east-west": {
+                "dest": {
+                    "ip": "1.1.1.1",
+                    "host": "1.2.3.4",
+                    "port": 80
+                },
+                "settings": {
+                    "timeout": 5,
+                    "packet_size": 55
+                }
+            }
+        }
+
         mock_datetime.datetime.now.return_value.isoformat.return_value = "aaa"
 
-        c = collector.Collector("some_url", client_host, [dest_host])
+        c = collector.Collector("some_url", client_host, [task])
         mock_monotonic.side_effect = [1, 2]
         mock_get.return_value = mock.MagicMock(
             content="Q" * 10, status_code=200)
-        c.gen_periodic_http_ping(dest_host)()
+        c.gen_periodic_http_ping(task)()
         self.assertEqual(1, len(c.queue))
 
         expected = {
             "client_src": client_host,
-            "client_dest": dest_host,
+            "client_dest": task["east-west"]["dest"],
             "protocol": "http",
             "timestamp": "aaa",
             "latency": 1000,
@@ -103,6 +161,45 @@ class CollectorTestCase(test.TestCase):
         }
 
         self.assertEqual(expected, c.queue.pop()["east-west"])
+
+    @mock.patch("netmet.client.collector.datetime")
+    @mock.patch("netmet.client.collector.monotonic.monotonic")
+    @mock.patch("netmet.client.collector.requests.get")
+    def test_gen_periodic_http_ping_south_north(self, mock_get, mock_monotonic,
+                                                mock_datetime):
+        client_host = mock.MagicMock()
+        task = {
+            "south-north": {
+                "dest": "http://1.2.3.4",
+                "settings": {
+                    "timeout": 5,
+                    "packet_size": 55
+                }
+            }
+        }
+
+        mock_datetime.datetime.now.return_value.isoformat.return_value = "aaa"
+
+        c = collector.Collector("some_url", client_host, [task])
+        mock_monotonic.side_effect = [1, 2]
+        mock_get.return_value = mock.MagicMock(
+            content="Q" * 10, status_code=200)
+        c.gen_periodic_http_ping(task)()
+        self.assertEqual(1, len(c.queue))
+
+        expected = {
+            "client_src": client_host,
+            "dest": task["south-north"]["dest"],
+            "protocol": "http",
+            "timestamp": "aaa",
+            "latency": 1000,
+            "packet_size": 10,
+            "lost": 0,
+            "transmitted": 1,
+            "ret_code": 200
+        }
+
+        self.assertEqual(expected, c.queue.pop()["south-north"])
 
     def test_gen_periodic_http_ping_requests_raises(self):
         pass

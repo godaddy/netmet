@@ -20,13 +20,10 @@ LOG = logging.getLogger(__name__)
 class Collector(object):
     pinger_failed_msg = "Pinger failed to ping"
 
-    def __init__(self, netmet_server, client_host, hosts,
-                 period=5, timeout=1, packet_size=55):
+    def __init__(self, netmet_server, client_host, tasks, period=5):
         self.client_host = client_host
-        self.hosts = hosts
+        self.tasks = tasks
         self.period = period
-        self.timeout = timeout
-        self.packet_size = packet_size
         self.pusher = None
         if netmet_server:
             netmet_server = netmet_server.rstrip("/")
@@ -38,54 +35,70 @@ class Collector(object):
         self.main_thread = None
         self.processing_thread = None
 
-    def gen_periodic_ping(self, host):
-        pinger = ping.Ping(host["ip"],
-                           timeout=self.timeout, packet_size=self.packet_size)
+    def gen_periodic_ping(self, task):
+
+        ip = (task["south-north"]["dest"] if "south-north" in task else
+              task["east-west"]["dest"]["ip"])
+        settings = task[task.keys()[0]]["settings"]
+        pinger = ping.Ping(ip, timeout=settings["timeout"],
+                           packet_size=settings["packet_size"])
 
         def ping_():
             try:
                 result = pinger.ping()
-                self.queue.append({
-                    "east-west": {
-                        "client_src": self.client_host,
-                        "client_dest": host,
-                        "protocol": "icmp",
-                        "timestamp": result["timestamp"],
-                        "latency": result["rtt"],
-                        "packet_size": result["packet_size"],
-                        "lost":  int(bool(result["ret_code"])),
-                        "transmitted": int(not bool(result["ret_code"])),
-                        "ret_code": result["ret_code"]
-                    }
-                })
+
+                metric = {
+                    "client_src": self.client_host,
+                    "protocol": "icmp",
+                    "timestamp": result["timestamp"],
+                    "latency": result["rtt"],
+                    "packet_size": result["packet_size"],
+                    "lost":  int(bool(result["ret_code"])),
+                    "transmitted": int(not bool(result["ret_code"])),
+                    "ret_code": result["ret_code"]
+                }
+
+                if "south-north" in task:
+                    metric["dest"] = task["south-north"]["dest"]
+                    self.queue.append({"south-north": metric})
+
+                else:
+                    metric["client_dest"] = task["east-west"]["dest"]
+                    self.queue.append({"east-west": metric})
+
             except Exception:
                 LOG.exception(self.pinger_failed_msg)
 
         return ping_
 
-    def gen_periodic_http_ping(self, host):
+    def gen_periodic_http_ping(self, task):
 
         def http_ping():
             try:
                 started_at = monotonic.monotonic()
-                packet = {
-                    "east-west": {
-                        "client_src": self.client_host,
-                        "client_dest": host,
-                        "protocol": "http",
-                        "timestamp": datetime.datetime.now().isoformat(),
-                        "packet_size": 0,
-                        "latency": 0,
-                        "lost": 1,
-                        "transmitted": 0,
-                        "ret_code": 504
-                    }
+
+                metric = {
+                    "client_src": self.client_host,
+                    "protocol": "http",
+                    "timestamp": datetime.datetime.now().isoformat(),
+                    "packet_size": 0,
+                    "latency": 0,
+                    "lost": 1,
+                    "transmitted": 0,
+                    "ret_code": 504
                 }
+                settings = task[task.keys()[0]]["settings"]
 
-                r = requests.get("http://%s:%s" % (host["host"], host["port"]),
-                                 timeout=self.timeout)
+                if "east-west" in task:
+                    dest = task["east-west"]["dest"]
+                    metric["client_dest"] = dest
+                    dest = "http://%s:%s" % (dest["host"], dest["port"])
+                else:
+                    dest = task["south-north"]["dest"]
+                    metric["dest"] = dest
 
-                packet["east-west"].update({
+                r = requests.get(dest, timeout=settings["timeout"])
+                metric.update({
                     "latency": (monotonic.monotonic() - started_at) * 1000,
                     "packet_size": len(r.content),
                     "lost":  int(r.status_code != 200),
@@ -97,7 +110,8 @@ class Collector(object):
             except Exception:
                 LOG.exception("Collector failed to call another clinet API")
             finally:
-                self.queue.append(packet)
+                type_ = "east-west" if "east-west" in task else "south-north"
+                self.queue.append({type_: metric})
 
         return http_ping
 
@@ -114,10 +128,17 @@ class Collector(object):
 
     def _job(self):
         callables = []
-        for i, h in enumerate(self.hosts):
-            callables.append(self.gen_periodic_ping(h))
-        for i, h in enumerate(self.hosts):
-            callables.append(self.gen_periodic_http_ping(h))
+        generators = {
+            "icmp": self.gen_periodic_ping,
+            "http": self.gen_periodic_http_ping
+        }
+
+        for task in self.tasks:
+            protocol = task[task.keys()[0]]["protocol"]
+            if protocol in generators:
+                callables.append(generators[protocol](task))
+            else:
+                LOG.warning("Allowed protocols are: %s" % generators.keys())
 
         period = self.period / float(len(callables))
         pool = futurist.ThreadPoolExecutor(

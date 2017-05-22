@@ -111,6 +111,133 @@ def set_config():
     except (ValueError, jsonschema.exceptions.ValidationError) as e:
         return flask.jsonify({"error": "Bad request: %s" % e}), 400
 
+    # NOTE(boris-42): Transform data for new Collector
+    data["client_host"].pop("mac", "")
+    hosts = data.pop("hosts")
+    s = {
+        "timeout": data.pop("timeout"),
+        "packet_size": 55,
+        "period": data["period"]
+    }
+    data["tasks"] = []
+    for host in hosts:
+        host.pop("mac", "")
+        data["tasks"].extend([
+            {"east-west": {"dest": host, "protocol": "icmp", "settings": s}},
+            {"east-west": {"dest": host, "protocol": "http", "settings": s}}
+        ])
+
+    with _LOCK:
+        if _COLLECTOR:
+            _COLLECTOR.stop()
+
+        _CONFIG = data
+        conf.restore_url_set(data["netmet_server"],
+                             data["client_host"]["host"],
+                             data["client_host"]["port"])
+        _COLLECTOR = collector.Collector(**data)
+        _COLLECTOR.start()
+
+    return flask.jsonify({"message": "Succesfully update netmet config"}), 201
+
+
+@APP.route("/api/v2/config", methods=['POST'])
+def set_config_v2():
+    global _LOCK, _COLLECTOR, _CONFIG
+
+    if _DEAD:
+        flask.abort(500)
+
+    schema = {
+        "type": "object",
+        "definitions": {
+            "client": {
+                "type": "object",
+                "properties": {
+                    "host": {"type": "string"},
+                    "ip": {"type": "string"},
+                    "port": {"type": "integer"},
+                    "hypervisor": {"type": "string"},
+                    "az": {"type": "string"},
+                    "dc": {"type": "string"}
+                },
+                "required": ["ip", "host", "az", "dc", "port"],
+                "additionProperties": False
+            },
+            "settings": {
+                "type": "object",
+                "properties": {
+                    "packet_size": {"type": "number", "minimum": 1},
+                    "period": {"type": "number", "minimum": 0.1},
+                    "timeout": {"type": "number", "minimum": 0.01}
+                },
+                "required": ["packet_size", "period", "timeout"],
+                "additionProperties": False
+            }
+        },
+        "properties": {
+            "netmet_server": {"type": "string"},
+            "client_host": {"$ref": "#/definitions/client"},
+            "settings": {"$ref": "#/definitions/settings"},
+            "tasks": {
+                "type": "array",
+                "items": {
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "properties": {
+                                "south-north": {
+                                    "type": "object",
+                                    "properties": {
+                                        "dest": {"type": "string"},
+                                        "protocol": {"enum": ["http", "icmp"]},
+                                        "settings": {
+                                            "$ref": "#/definitions/settings"
+                                        }
+                                    },
+                                    "required": ["dest", "protocol"],
+                                }
+                            },
+                            "required": ["south-north"]
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "east-west": {
+                                    "type": "object",
+                                    "properties": {
+                                        "dest":  {
+                                            "$ref": "#/definitions/client"
+                                        },
+                                        "protocol": {"enum": ["http", "icmp"]},
+                                        "settings": {
+                                            "$ref": "#/definitions/settings"
+                                        }
+                                    },
+                                    "required": ["dest", "protocol"],
+                                }
+                            },
+                            "required": ["east-west"]
+                        }
+                    ]
+                }
+            }
+        },
+        "required": ["netmet_server", "client_host", "tasks", "settings"]
+    }
+
+    try:
+        data = flask.request.get_json(silent=False, force=True)
+        jsonschema.validate(data, schema)
+        settings = data.pop("settings")
+        # TODO(boris-42): Make configuration of period flexible in future
+        data["period"] = settings["period"]
+        for task in data["tasks"]:
+            if "settings" not in task:
+                task[task.keys()[0]]["settings"] = settings
+    except (ValueError, jsonschema.exceptions.ValidationError) as e:
+        return flask.jsonify({"error": "Bad request: %s" % e}), 400
+
     with _LOCK:
         if _COLLECTOR:
             _COLLECTOR.stop()
