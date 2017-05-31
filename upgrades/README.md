@@ -15,4 +15,4 @@ Netmet upgrades are not that hard, they have 1 or 2 steps
 
 ## Data upgrades
 
-- Run proper upgrade script e.g.: `python upgrade_v1_v2.py`
+- Run proper upgrade script e.g.: `python 0001_upgrade_data_v1_v2.py`

@@ -122,7 +122,7 @@ def main():
        or len(sys.argv) > 3
        or len(sys.argv) == 3 and sys.argv[2] != "--check"):
         print("Invalid input. Usage:")
-        print("python upgrade_v1_v2.py <elastic_url> [--check]")
+        print("python 0001_upgrade_data_v1_v2.py <elastic_url> [--check]")
         return 1
     else:
         upgrade(sys.argv[1], dry_run=len(sys.argv) == 3)
