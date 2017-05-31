@@ -37,7 +37,7 @@ class Collector(object):
 
     def gen_periodic_ping(self, task):
 
-        ip = (task["south-north"]["dest"] if "south-north" in task else
+        ip = (task["north-south"]["dest"] if "north-south" in task else
               task["east-west"]["dest"]["ip"])
         settings = task[task.keys()[0]]["settings"]
         pinger = ping.Ping(ip, timeout=settings["timeout"],
@@ -58,9 +58,9 @@ class Collector(object):
                     "ret_code": result["ret_code"]
                 }
 
-                if "south-north" in task:
-                    metric["dest"] = task["south-north"]["dest"]
-                    self.queue.append({"south-north": metric})
+                if "north-south" in task:
+                    metric["dest"] = task["north-south"]["dest"]
+                    self.queue.append({"north-south": metric})
 
                 else:
                     metric["client_dest"] = task["east-west"]["dest"]
@@ -94,7 +94,7 @@ class Collector(object):
                     metric["client_dest"] = dest
                     dest = "http://%s:%s" % (dest["host"], dest["port"])
                 else:
-                    dest = task["south-north"]["dest"]
+                    dest = task["north-south"]["dest"]
                     metric["dest"] = dest
 
                 r = requests.get(dest, timeout=settings["timeout"])
@@ -110,7 +110,7 @@ class Collector(object):
             except Exception:
                 LOG.exception("Collector failed to call another clinet API")
             finally:
-                type_ = "east-west" if "east-west" in task else "south-north"
+                type_ = "east-west" if "east-west" in task else "north-south"
                 self.queue.append({type_: metric})
 
         return http_ping

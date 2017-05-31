@@ -186,7 +186,7 @@ def set_config_v2():
                         {
                             "type": "object",
                             "properties": {
-                                "south-north": {
+                                "north-south": {
                                     "type": "object",
                                     "properties": {
                                         "dest": {"type": "string"},
@@ -198,7 +198,7 @@ def set_config_v2():
                                     "required": ["dest", "protocol"],
                                 }
                             },
-                            "required": ["south-north"]
+                            "required": ["north-south"]
                         },
                         {
                             "type": "object",

@@ -140,7 +140,7 @@ def metrics_add():
     except (ValueError, jsonschema.exceptions.ValidationError) as e:
         return flask.jsonify({"error": "Bad request: %s" % e}), 400
     else:
-        data = {"south-north": [], "east-west": []}
+        data = {"north-south": [], "east-west": []}
         for d in req_data:
             for key in data:
                 if key in d:

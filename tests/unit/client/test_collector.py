@@ -73,7 +73,7 @@ class CollectorTestCase(test.TestCase):
     def test_gen_periodic_ping_south_north(self, mock_ping):
         client_host = mock.MagicMock()
         task = {
-            "south-north": {
+            "north-south": {
                 "dest": "1.1.1.1",
                 "settings": {
                     "timeout": 5,
@@ -94,7 +94,7 @@ class CollectorTestCase(test.TestCase):
         self.assertEqual(1, len(c.queue))
         expected = {
             "client_src": client_host,
-            "dest": task["south-north"]["dest"],
+            "dest": task["north-south"]["dest"],
             "protocol": "icmp",
             "timestamp": "ttt",
             "latency": 10,
@@ -103,7 +103,7 @@ class CollectorTestCase(test.TestCase):
             "transmitted": 1,
             "ret_code": 0
         }
-        self.assertEqual(expected, c.queue.pop()["south-north"])
+        self.assertEqual(expected, c.queue.pop()["north-south"])
 
     @mock.patch("netmet.client.collector.LOG")
     @mock.patch("netmet.client.collector.ping.Ping.ping")
@@ -169,7 +169,7 @@ class CollectorTestCase(test.TestCase):
                                                 mock_datetime):
         client_host = mock.MagicMock()
         task = {
-            "south-north": {
+            "north-south": {
                 "dest": "http://1.2.3.4",
                 "settings": {
                     "timeout": 5,
@@ -189,7 +189,7 @@ class CollectorTestCase(test.TestCase):
 
         expected = {
             "client_src": client_host,
-            "dest": task["south-north"]["dest"],
+            "dest": task["north-south"]["dest"],
             "protocol": "http",
             "timestamp": "aaa",
             "latency": 1000,
@@ -199,7 +199,7 @@ class CollectorTestCase(test.TestCase):
             "ret_code": 200
         }
 
-        self.assertEqual(expected, c.queue.pop()["south-north"])
+        self.assertEqual(expected, c.queue.pop()["north-south"])
 
     def test_gen_periodic_http_ping_requests_raises(self):
         pass

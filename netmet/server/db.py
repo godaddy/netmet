@@ -72,7 +72,7 @@ class DB(worker.LonelyWorker):
             }
         },
         "mappings": {
-            "south-north": {
+            "north-south": {
                 "dynamic": "strict",
                 "properties": {
                     "client_src.host": {"type": "keyword"},
@@ -262,7 +262,7 @@ class DB(worker.LonelyWorker):
                             refresh="true")
 
     def metrics_add(self, doc_type, data):
-        if doc_type not in ["east-west", "south-north"]:
+        if doc_type not in ["east-west", "north-south"]:
             raise ValueError("Wrong doc type")
 
         bulk_body = []
