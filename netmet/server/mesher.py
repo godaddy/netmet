@@ -13,35 +13,145 @@ from netmet.utils import worker
 LOG = logging.getLogger(__name__)
 
 
+class MeshPlugin(object):
+
+    def mesh(self, config, clients, external):
+        return []
+
+
+class FullMesh(MeshPlugin):
+
+    CONFIG_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "north-south": {
+                "type": "object",
+                "patternProperties": {
+                    "(http)|(icmp)": {
+                        "type": "object",
+                        "properties": {
+                            "period": {"type": "number"},
+                            "timeout": {"type": "number"},
+                            "packet_size": {"type": "number"}
+                        }
+                    }
+                }
+            },
+        },
+        "additionalProperties": False
+    }
+
+    def mesh(self, mesh_config, clients, external):
+
+        for client in clients:
+            tasks = []
+
+            for other_client in clients:
+                if client == other_client:
+                    continue
+
+                for protocol in ["http", "icmp"]:
+                    task = {"dest": other_client, "protocol": protocol}
+                    if mesh_config.get("north-south", {}).get(protocol):
+                        task["settings"] = mesh_config["north-south"][protocol]
+
+                    tasks.append({"east-west": task})
+
+            for ext in external:
+                tasks.append({
+                    "north-south": {
+                        "dest": ext["dest"],
+                        "protocol": ext["protocol"],
+                        "settings": {
+                            "period": ext["period"],
+                            "timeout": ext["timeout"]
+                        }
+                    }
+                })
+
+            yield client, tasks
+
+
+class DistributedMesh(MeshPlugin):
+
+    CONFIG_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "distributed_mesh": {
+                "type": "object",
+                "properties": {
+                    "north-south": {
+                        "type": "object",
+                        "properties": {
+                            "spread": {
+                                "enum": ["hypervisor", "dc", "az", "all"]
+                            },
+                            "repeat": {"type": "number", "minimum": 1},
+                            "period": {"type": "number", "minimum": 1},
+                            "timeout": {"type": "number", "minimum": 1}
+                        }
+                    },
+                    "east-west": {
+                        "type": "object",
+                        "properties": {
+                            "repeat_inside_az": {
+                                "type": "number",
+                                "minimum": 1
+                            },
+                            "repeat_between_az": {
+                                "type": "number",
+                                "minimum": 1
+                            },
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    def mesh(self, config, clients, external):
+        pass
+
+
 class Mesher(worker.LonelyWorker):
     no_changes_msg = "Mesher: no changes in config detected."
     new_config_msg = "Mesher detect new config: Remeshing clients."
     update_failed_msg = "Mesher update failed."
     lock_name = "update_config"
-    client_api = "http://%s:%s/api/v1/config"
+    client_api = "http://%s:%s/api/v2/config"
+    # TODO(boris-42): Make this plugable
+    plugins = {
+        "full_mesh": FullMesh()
+    }
 
     def __init__(self):
         """Do not use this method directly. Use create() instead."""
+
+    @classmethod
+    def get_jsonschema(cls):
+        return {
+            "type": "object",
+            "oneOf": [
+                {"properties": {name: p.CONFIG_SCHEMA}}
+                for name, p in cls.plugins.iteritems()
+            ]
+        }
 
     @classmethod
     def create(cls, netmet_server_url):
         super(Mesher, cls).create()
         cls._self.netmet_server_url = netmet_server_url
 
-    @classmethod
-    def _full_mesh(cls, clients):
-        clients = [{k: x[k] for k in ["ip", "port", "host", "dc", "az"]}
-                   for x in clients]
-
-        for i in xrange(len(clients)):
-            yield [clients[i], clients[:i] + clients[i + 1:]]
-
-    def _update_client(self, client, hosts):
+    def _update_client(self, client, tasks):
         try:
             body = {
                 "netmet_server": self.netmet_server_url,
                 "client_host": client,
-                "hosts": hosts
+                "tasks": tasks,
+                "settings": {
+                    "timeout": 1,
+                    "period": 5
+                }
             }
             requests.post(self.client_api % (client["host"], client["port"]),
                           json=body)
@@ -58,6 +168,15 @@ class Mesher(worker.LonelyWorker):
 
         return True, 200, "Client updated"
 
+    def _mesh(self, config):
+        mesh = self.plugins[config["mesher"].keys()[0]].mesh
+
+        allowed = set(["ip", "port", "host", "hypervisor", "dc", "az"])
+        clients = [{k: x[k] for k in allowed if k in x}
+                   for x in db.get().clients_get()]
+
+        return mesh(config["mesher"].values()[0], clients, config["external"])
+
     def refresh_client(self, host, port):
         lock_acuired = False
         attempts = 0
@@ -65,7 +184,11 @@ class Mesher(worker.LonelyWorker):
         while not lock_acuired and attempts < 3:
             try:
                 with eslock.Glock("update_config"):
-                    for c in self._full_mesh(db.get().clients_get()):
+                    config = db.get().server_config_get()
+                    if not (config["applied"] and config["meshed"]):
+                        return False, 404, "Configuration not found"
+
+                    for c in self._mesh(config["config"]):
                         if c[0]["host"] == host and c[0]["port"] == port:
                             return self._update_client(c[0], c[1])
 
@@ -92,7 +215,7 @@ class Mesher(worker.LonelyWorker):
                     config = get_conf()
                     if not is_meshed(config):
                         LOG.info(self.new_config_msg)
-                        for c in self._full_mesh(db.get().clients_get()):
+                        for c in self._mesh(config["config"]):
                             # TODO(boris-42): Run this in parallel
                             self._update_client(c[0], c[1])
                         db.get().server_config_meshed(config["id"])

@@ -38,7 +38,7 @@ class Deployer(worker.LonelyWorker):
 
                         # TODO(boris-42): Add support of multi drivers
                         new_clients = StaticDeployer().redeploy(
-                            config["config"]["static"], clients)
+                            config["config"]["deployment"]["static"], clients)
 
                         db.get().clients_set(new_clients)
                         db.get().server_config_apply(config["id"])

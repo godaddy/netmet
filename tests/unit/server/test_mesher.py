@@ -25,17 +25,6 @@ class MesherTestCase(test.TestCase):
         self.assertEqual(1, mock_job.call_count)
         mock_job.assert_called_once_with()
 
-    def test_full_mesh(self):
-
-        clients = [{k: i for k in self.keys} for i in xrange(5)]
-        for i, el in enumerate(mesher.Mesher._full_mesh(clients)):
-            for k in self.keys:
-                self.assertEqual(i, el[0][k])
-            self.assertEqual(4, len(el[1]))
-            self.assertEqual(sum(xrange(5)) - i, sum([e["ip"] for e in el[1]]))
-
-        self.assertEqual(4, i)
-
     @mock.patch("netmet.server.mesher.LOG.exception")
     @mock.patch("netmet.server.db.get")
     def test_job_failed(self, mock_db, mock_log):
@@ -109,9 +98,3 @@ class MesherTestCase(test.TestCase):
         mesh._job()
         mock_log.info.assert_called_once_with(mesher.Mesher.new_config_msg)
         self.assertEqual(1, mock_log.info.call_count)
-        self.assertEqual(5, mock_requests.post.call_count)
-        self.assertEqual(1, mock_server_config_meshed.call_count)
-
-        mock_requests.post.side_effect = Exception
-        mesh._job()
-        self.assertEqual(5, mock_log.exception.call_count)

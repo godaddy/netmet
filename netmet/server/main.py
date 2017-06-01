@@ -61,7 +61,7 @@ def config_get():
     return flask.jsonify(config), 200
 
 
-@app.route("/api/v1/config", methods=["POST"])
+@app.route("/api/v2/config", methods=["POST"])
 @db_errors_handler
 def config_set():
     """Sets netmet server configuration."""
@@ -69,32 +69,53 @@ def config_set():
     CONFIG_SCHEMA = {
         "type": "object",
         "properties": {
-            "static": {
+            "deployment": {
                 "type": "object",
                 "properties": {
-                    "clients": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "host": {"type": "string"},
-                                "ip": {"type": "string"},
-                                "port": {"type": "integer"},
-                                "mac": {"type": "string"},
-                                "az": {"type": "string"},
-                                "dc": {"type": "string"},
-                                "hypervisor": {"type": "string"}
-                            },
-                            "required": ["host", "ip", "az", "dc"],
-                            "additionalProperties": False
-                        }
+                    "static": {
+                        "type": "object",
+                        "properties": {
+                            "clients": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "host": {"type": "string"},
+                                        "ip": {"type": "string"},
+                                        "port": {"type": "integer"},
+                                        "az": {"type": "string"},
+                                        "dc": {"type": "string"},
+                                        "hypervisor": {"type": "string"}
+                                    },
+                                    "required": ["host", "ip", "az", "dc"],
+                                    "additionalProperties": False
+                                }
+                            }
+                        },
+                        "required": ["clients"],
+                        "additionalProperties": False
                     }
                 },
-                "required": ["clients"],
-                "additionalProperties": False,
+                "required": ["static"],
+                "additionalProperties": False
+            },
+            "mesher": mesher.Mesher.get_jsonschema(),
+            "external": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "dest": {"type": "string"},
+                        "protocol": {"enum": ["http", "icmp"]},
+                        "period": {"type": "number"},
+                        "timeout": {"type": "number"}
+                    },
+                    "required": ["dest", "protocol"],
+                    "additionalProperties": False
+                }
             }
         },
-        "required": ["static"],
+        "required": ["deployment", "mesher"],
         "additionalProperties": False
     }
     try:
