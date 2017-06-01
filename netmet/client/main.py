@@ -171,7 +171,7 @@ def set_config_v2():
                     "period": {"type": "number", "minimum": 0.1},
                     "timeout": {"type": "number", "minimum": 0.01}
                 },
-                "required": ["packet_size", "period", "timeout"],
+                "required": ["period", "timeout"],
                 "additionProperties": False
             }
         },
@@ -196,9 +196,11 @@ def set_config_v2():
                                         }
                                     },
                                     "required": ["dest", "protocol"],
+                                    "additionProperties": False
                                 }
                             },
-                            "required": ["north-south"]
+                            "required": ["north-south"],
+                            "additionProperties": False
                         },
                         {
                             "type": "object",
@@ -217,19 +219,22 @@ def set_config_v2():
                                     "required": ["dest", "protocol"],
                                 }
                             },
-                            "required": ["east-west"]
+                            "required": ["east-west"],
+                            "additionProperties": False
                         }
                     ]
                 }
             }
         },
-        "required": ["netmet_server", "client_host", "tasks", "settings"]
+        "required": ["netmet_server", "client_host", "tasks", "settings"],
+        "additionProperties": False
     }
 
     try:
         data = flask.request.get_json(silent=False, force=True)
         jsonschema.validate(data, schema)
         settings = data.pop("settings")
+        settings.setdefault("packet_size", 55)
         # TODO(boris-42): Make configuration of period flexible in future
         data["period"] = settings["period"]
         for task in data["tasks"]:
