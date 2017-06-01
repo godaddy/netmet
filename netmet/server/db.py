@@ -220,9 +220,7 @@ class DB(worker.LonelyWorker):
                           refresh="true")
 
     def server_config_get(self, only_applied=False):
-        query = {
-            "sort": {"timestamp": {"order": "desc"}}
-        }
+        query = {"sort": {"timestamp": {"order": "desc"}}}
         if only_applied:
             query["query"] = {"term": {"applied": True}}
         result = self.elastic.search(index=DB._CATALOG_IDX, doc_type="config",
