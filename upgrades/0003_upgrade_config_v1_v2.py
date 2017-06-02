@@ -35,7 +35,7 @@ def upgrade(elastic, dry_run=False):
     if body:
         elastic.bulk(index="netmet_catalog", doc_type="config",
                      body="\n".join(body))
-        print("Upgrade finished. %s records changed" % len(body) / 2)
+        print("Upgrade finished. %s records changed" % str(len(body) / 2))
     else:
         print("Everything is up to date.")
 
