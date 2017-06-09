@@ -241,8 +241,9 @@ def set_config_v2():
         # TODO(boris-42): Make configuration of period flexible in future
         data["period"] = settings["period"]
         for task in data["tasks"]:
-            if "settings" not in task:
-                task[task.keys()[0]]["settings"] = settings
+            task[task.keys()[0]].setdefault("settings", {})
+            for k, v in settings.iteritems():
+                task[task.keys()[0]]["settings"].setdefault(k, v)
 
         LOG.info("Applying new config")
         LOG.info(json.dumps(data))
