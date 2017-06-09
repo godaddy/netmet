@@ -3,8 +3,8 @@
 import collections
 import datetime
 import logging
+import random
 import threading
-import time
 
 import futurist
 import futurist.rejection
@@ -20,10 +20,9 @@ LOG = logging.getLogger(__name__)
 class Collector(object):
     pinger_failed_msg = "Pinger failed to ping"
 
-    def __init__(self, netmet_server, client_host, tasks, period=5):
+    def __init__(self, netmet_server, client_host, tasks):
         self.client_host = client_host
         self.tasks = tasks
-        self.period = period
         self.pusher = None
         if netmet_server:
             netmet_server = netmet_server.rstrip("/")
@@ -31,7 +30,8 @@ class Collector(object):
 
         self.lock = threading.Lock()
         self.queue = collections.deque()
-        self.running = False
+        self.death = threading.Event()
+        self.started = False
         self.main_thread = None
         self.processing_thread = None
 
@@ -116,7 +116,7 @@ class Collector(object):
         return http_ping
 
     def process_results(self):
-        while self.queue or self.running:
+        while self.queue or not self.death.is_set():
             while self.queue:
                 item = self.queue.popleft()
                 if self.pusher:
@@ -124,44 +124,68 @@ class Collector(object):
                 else:
                     print(item)   # netmet client standalone mode
 
-            time.sleep(0.1)
+            self.death.wait(0.1)
+
+    def _job_per_period(self, callables, period):
+
+        def helper():
+            delay = period / float(len(callables))
+            pool = futurist.ThreadPoolExecutor(
+                max_workers=50,
+                check_and_reject=futurist.rejection.reject_when_reached(50))
+
+            with pool:
+                while not self.death.is_set():
+                    for item in callables:
+                        while not self.death.is_set():
+                            try:
+                                pool.submit(item)
+                                break
+                            except futurist.RejectedSubmission:
+                                LOG.warning("Collector: Feed me! Mre threads!")
+                                self.death.wait(delay)
+
+                        self.death.wait(delay)
+
+                    # up to 0.1 second delay  between runs of tasks
+                    self.death.wait(random.random() * min(delay, 1) / 10.0)
+        return helper
 
     def _job(self):
-        callables = []
         generators = {
             "icmp": self.gen_periodic_ping,
             "http": self.gen_periodic_http_ping
         }
 
+        period_tasks = {}
         for task in self.tasks:
-            protocol = task[task.keys()[0]]["protocol"]
+            task_data = task.values()[0]
+            period_ = task_data["settings"]["period"]
+            protocol = task_data["protocol"]
+            period_tasks.setdefault(period_, [])
             if protocol in generators:
-                callables.append(generators[protocol](task))
+                period_tasks[period_].append(generators[protocol](task))
             else:
                 LOG.warning("Allowed protocols are: %s" % generators.keys())
 
-        period = self.period / float(len(callables))
-        pool = futurist.ThreadPoolExecutor(
-            max_workers=50,
-            check_and_reject=futurist.rejection.reject_when_reached(50))
+        pool = futurist.ThreadPoolExecutor(max_workers=len(period_tasks))
+        with pool:
+            min_period = min(period_tasks)
+            min_lag = float(min_period) / len(period_tasks[min_period])
+            lag = min(min_lag / len(period_tasks), 1)
 
-        while self.running:
-            for item in callables:
-                while self.running:
-                    try:
-                        pool.submit(item)
-                        break
-                    except futurist.RejectedSubmission:
-                        LOG.warning("Collector: Feed me! Mreee threads!")
-                        time.sleep(period)
-
-                time.sleep(period)
+            LOG.info(period_tasks)
+            for period, callables in period_tasks.iteritems():
+                pool.submit(self._job_per_period(callables, period))
+                self.death.wait(lag)
 
     def start(self):
         with self.lock:
-            if self.running:
-                return False
-            self.running = True
+            if not self.started:
+                self.started = True
+                self.death = threading.Event()
+            else:
+                return
 
         if self.pusher:
             self.pusher.start()
@@ -177,9 +201,10 @@ class Collector(object):
 
     def stop(self):
         with self.lock:
-            if self.running:
-                self.running = False
+            if self.started and not self.death.is_set():
+                self.death.set()
                 self.main_thread.join()
                 self.processing_thread.join()
                 if self.pusher:
                     self.pusher.stop()
+                self.started = False

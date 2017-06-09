@@ -1,8 +1,8 @@
 # Copyright 2017: GoDaddy Inc.
 
-import threading
-import logging
 import json
+import logging
+import threading
 
 import flask
 from flask_helpers import routing
@@ -238,15 +238,13 @@ def set_config_v2():
         jsonschema.validate(data, schema)
         settings = data.pop("settings")
         settings.setdefault("packet_size", 55)
-        # TODO(boris-42): Make configuration of period flexible in future
-        data["period"] = settings["period"]
         for task in data["tasks"]:
             task[task.keys()[0]].setdefault("settings", {})
             for k, v in settings.iteritems():
                 task[task.keys()[0]]["settings"].setdefault(k, v)
 
         LOG.info("Applying new config")
-        LOG.info(json.dumps(data))
+        LOG.info(json.dumps(data, indent=2))
     except (ValueError, jsonschema.exceptions.ValidationError) as e:
         return flask.jsonify({"error": "Bad request: %s" % e}), 400
 

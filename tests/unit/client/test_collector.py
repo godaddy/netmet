@@ -19,16 +19,14 @@ class CollectorTestCase(test.TestCase):
 
         c = collector.Collector(None, host, tasks)
         self.assertEqual(tasks, c.tasks)
-        self.assertEqual(5, c.period)
         self.assertIsNone(c.pusher)
 
     def test_init_full(self):
         host = mock.MagicMock()
         tasks = [mock.MagicMock()]
 
-        c = collector.Collector("http://netmet_url", host, tasks, period=10)
+        c = collector.Collector("http://netmet_url", host, tasks)
         self.assertEqual(tasks, c.tasks)
-        self.assertEqual(10, c.period)
         self.assertIsInstance(c.pusher, pusher.Pusher)
 
     @mock.patch("netmet.client.collector.ping.Ping.ping")
@@ -210,6 +208,7 @@ class CollectorTestCase(test.TestCase):
     @mock.patch("netmet.client.collector.pusher.Pusher.add")
     def test_process_results_with_pusher(self, mock_pusher_add):
         c = collector.Collector("some_url", {}, [])
+        c.death.set()
         c.queue = collections.deque(xrange(100))
         c.process_results()
         self.assertEqual(100, mock_pusher_add.call_count)
@@ -217,6 +216,7 @@ class CollectorTestCase(test.TestCase):
     @mock.patch("sys.stdout", new_callable=StringIO.StringIO)
     def test_process_results_without_pusher(self, mock_stdout):
         c = collector.Collector(None, {}, [])
+        c.death.set()
         c.queue = collections.deque(xrange(10))
         c.process_results()
         self.assertEqual("\n".join(str(i) for i in xrange(10)) + "\n",
@@ -225,10 +225,9 @@ class CollectorTestCase(test.TestCase):
     @mock.patch("netmet.client.collector.Collector.gen_periodic_ping")
     @mock.patch("netmet.client.collector.Collector.gen_periodic_http_ping")
     def test_start_and_stop_no_pusher(self, mock_gen_ping, mock_gen_http_ping):
-
         mock_gen_ping.return_value = str
         mock_gen_http_ping.return_value = str
-        c = collector.Collector(None, {}, [1, 2, 3], period=0.1)
+        c = collector.Collector(None, {}, [1, 2, 3])
         c.start()
         time.sleep(0.05)
         c.stop()
@@ -236,10 +235,9 @@ class CollectorTestCase(test.TestCase):
     @mock.patch("netmet.client.collector.Collector.gen_periodic_ping")
     @mock.patch("netmet.client.collector.Collector.gen_periodic_http_ping")
     def test_start_and_stop_w_pusher(self, mock_gen_ping, mock_gen_http_ping):
-
         mock_gen_ping.return_value = str
         mock_gen_http_ping.return_value = str
-        c = collector.Collector("netmet_url", {}, [1, 2, 3], period=0.1)
+        c = collector.Collector("netmet_url", {}, [1, 2, 3])
         c.start()
         time.sleep(0.05)
         c.stop()
