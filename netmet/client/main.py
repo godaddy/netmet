@@ -196,11 +196,11 @@ def set_config_v2():
                                         }
                                     },
                                     "required": ["dest", "protocol"],
-                                    "additionProperties": False
+                                    "additionalProperties": False
                                 }
                             },
                             "required": ["north-south"],
-                            "additionProperties": False
+                            "additionalProperties": False
                         },
                         {
                             "type": "object",
@@ -217,17 +217,18 @@ def set_config_v2():
                                         }
                                     },
                                     "required": ["dest", "protocol"],
+                                    "additionalProperties": False
                                 }
                             },
                             "required": ["east-west"],
-                            "additionProperties": False
+                            "additionalProperties": False
                         }
                     ]
                 }
             }
         },
         "required": ["netmet_server", "client_host", "tasks", "settings"],
-        "additionProperties": False
+        "additionalProperties": False
     }
 
     try:
