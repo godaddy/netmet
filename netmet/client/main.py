@@ -1,6 +1,8 @@
 # Copyright 2017: GoDaddy Inc.
 
 import threading
+import logging
+import json
 
 import flask
 from flask_helpers import routing
@@ -13,7 +15,7 @@ from netmet.utils import status
 
 APP = flask.Flask(__name__, static_folder=None)
 APP.wsgi_app = status.StatusMiddleware(APP)
-
+LOG = logging.getLogger(__name__)
 
 # TOOD(boris-42): Move this to the Collector (unify with server).
 _LOCK = threading.Lock()
@@ -241,6 +243,9 @@ def set_config_v2():
         for task in data["tasks"]:
             if "settings" not in task:
                 task[task.keys()[0]]["settings"] = settings
+
+        LOG.info("Applying new config")
+        LOG.info(json.dumps(data))
     except (ValueError, jsonschema.exceptions.ValidationError) as e:
         return flask.jsonify({"error": "Bad request: %s" % e}), 400
 
