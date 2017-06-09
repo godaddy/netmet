@@ -110,7 +110,7 @@ def config_set():
                         "period": {"type": "number"},
                         "timeout": {"type": "number"}
                     },
-                    "required": ["dest", "protocol"],
+                    "required": ["dest", "protocol", "period", "timeout"],
                     "additionalProperties": False
                 }
             }
