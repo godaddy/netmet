@@ -12,6 +12,22 @@ from tests.unit import test
 class RunTestCase(test.TestCase):
 
     @mock.patch.dict(os.environ, {})
+    def test_parse_auth_info_none(self):
+        self.assertEqual({}, run._parse_auth_info())
+
+    @mock.patch.dict(os.environ, {"NETMET_AUTH": "wrong_format"})
+    def test_parse_auth_info_invalid(self):
+        self.assertRaises(ValueError, run._parse_auth_info)
+
+    @mock.patch.dict(os.environ, {"NETMET_AUTH": "not_a_valid:ttt"})
+    def test_parse_auth_info_week_password(self):
+        self.assertRaises(ValueError, run._parse_auth_info)
+
+    @mock.patch.dict(os.environ, {"NETMET_AUTH": "user3:ValidPass321"})
+    def test_parse_auth(self):
+        self.assertEqual({"user3": "ValidPass321"}, run._parse_auth_info())
+
+    @mock.patch.dict(os.environ, {})
     def test_load_no_app(self):
         self.assertRaises(ValueError, run.load)
 

@@ -16,6 +16,42 @@ from netmet.utils import asyncer
 LOG = logging.getLogger(__name__)
 
 
+def _parse_auth_info():
+    auth = os.getenv("NETMET_AUTH", "")
+
+    if not auth:
+        return {}
+
+    users = {}
+    for pairs in auth.split(","):
+        user_password = pairs.split(":")
+
+        if len(user_password) != 2:
+            raise ValueError("NETMET_AUTH has wrong format at '%s'" % pairs)
+
+        if user_password[0] in users:
+            raise ValueError("NETMET_AUTH has duplicated user: '%s'"
+                             % user_password[0])
+
+        password_strength_checks = {
+            "Password should have at least 6 symbols": lambda x: len(x) < 6,
+            "Use upper and lower case": lambda x: x.lower() == x,
+            "Use at least one number": lambda x: all(
+                ord(c) < 48 and ord(c) > 57 for c in x)
+        }
+
+        user, password = user_password
+
+        for reason, check in password_strength_checks.iteritems():
+            if check(user_password[1]):
+                raise ValueError("NETMET_AUTH has invalid password '%s': %s "
+                                 % (user_password[1], reason))
+
+        users[user_password[0]] = user_password[1]
+
+    return users
+
+
 def _parse_hmac():
     skip_check = os.getenv("NETMET_HMAC_SKIP", False)
     hmacs = os.getenv("NETMET_HMACS", "").strip()
@@ -45,6 +81,7 @@ def load():
 
     port = int(os.getenv("PORT", 5000))
     config.set("port", port)
+    config.set("users", _parse_auth_info())
     hmacs, check_hmac = _parse_hmac()
     config.set("hmac_keys", hmacs)
     config.set("hmac_skip_check", check_hmac)

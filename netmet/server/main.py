@@ -50,19 +50,21 @@ def db_errors_handler(f):
 
 
 @app.route("/api/v1/config", methods=["GET"])
+@secure.check_basic_auth
 @db_errors_handler
 def config_get():
     """Returns netmet server configuration."""
-    config = db.get().server_config_get()
+    server_config = db.get().server_config_get()
 
-    if not config:
+    if not server_config:
         return flask.jsonify({
             "message": "Netmet server has not been setup yet"}), 404
 
-    return flask.jsonify(config), 200
+    return flask.jsonify(server_config), 200
 
 
 @app.route("/api/v2/config", methods=["POST"])
+@secure.check_basic_auth
 @db_errors_handler
 def config_set():
     """Sets netmet server configuration."""
@@ -206,6 +208,7 @@ def event_get(event_id):
 
 
 @app.route("/api/v1/events/<event_id>", methods=["POST"])
+@secure.check_basic_auth
 @db_errors_handler
 def event_create(event_id):
     """If event already exists it recreates it."""
@@ -244,6 +247,7 @@ def event_create(event_id):
 
 
 @app.route("/api/v1/events/<event_id>/_stop", methods=["POST"])
+@secure.check_basic_auth
 @db_errors_handler
 def event_stop(event_id):
     db.get().event_stop(event_id)
@@ -251,6 +255,7 @@ def event_stop(event_id):
 
 
 @app.route("/api/v1/events/<event_id>", methods=["DELETE"])
+@secure.check_basic_auth
 @db_errors_handler
 def event_delete(event_id):
     db.get().event_delete(event_id)
