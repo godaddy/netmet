@@ -119,12 +119,12 @@ def config_set():
         "additionalProperties": False
     }
     try:
-        config = flask.request.get_json(silent=False, force=True)
-        jsonschema.validate(config, CONFIG_SCHEMA)
+        server_config = flask.request.get_json(silent=False, force=True)
+        jsonschema.validate(server_config, CONFIG_SCHEMA)
     except (ValueError, jsonschema.exceptions.ValidationError) as e:
         return flask.jsonify({"error": "Bad request: %s" % e}), 400
 
-    db.get().server_config_add(config)
+    db.get().server_config_add(server_config)
     deployer.Deployer.force_update()
     return flask.jsonify({"message": "Config was updated"}), 201
 
@@ -263,7 +263,7 @@ def die():
     db.DB.destroy()
 
 
-def load(port):
+def load():
     NETMET_SERVER = os.getenv("NETMET_SERVER_URL")
     if not NETMET_SERVER:
         raise ValueError("Set NETMET_SERVER_URL to NetMet server public "

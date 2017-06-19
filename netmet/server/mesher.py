@@ -1,5 +1,6 @@
 # Copyright 2017: GoDaddy Inc.
 
+import json
 import logging
 
 import requests
@@ -7,8 +8,8 @@ import requests
 from netmet import exceptions
 from netmet.server import db
 from netmet.server.utils import eslock
+from netmet.utils import secure
 from netmet.utils import worker
-
 
 LOG = logging.getLogger(__name__)
 
@@ -153,8 +154,9 @@ class Mesher(worker.LonelyWorker):
                     "period": 5
                 }
             }
+            data = json.dumps(body)
             requests.post(self.client_api % (client["host"], client["port"]),
-                          json=body)
+                          data=data, headers=secure.gen_hmac_headers(data))
             # Set client configured
         except Exception as e:
             exc = bool(LOG.isEnabledFor(logging.DEBUG))

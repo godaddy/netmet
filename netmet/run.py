@@ -8,11 +8,26 @@ import sys
 from gevent import wsgi
 
 from netmet.client import main as client_main
+from netmet import config
 from netmet.server import main as server_main
 from netmet.utils import asyncer
 
 
 LOG = logging.getLogger(__name__)
+
+
+def _parse_hmac():
+    skip_check = os.getenv("NETMET_HMAC_SKIP", False)
+    hmacs = os.getenv("NETMET_HMACS", "").strip()
+
+    if not hmacs and not skip_check:
+        raise ValueError("Set NETMET_HMAC_SKIP=True or Set NETMET_HMACS")
+
+    hmacs = hmacs and hmacs.split(",") or []
+    if not all(hmacs):
+        raise ValueError("One of HMAC is empty in NETMET_HMACS env variable.")
+
+    return hmacs, skip_check
 
 
 def load():
@@ -29,9 +44,13 @@ def load():
         mode = client_main
 
     port = int(os.getenv("PORT", 5000))
-    app = mode.load(port)
+    config.set("port", port)
+    hmacs, check_hmac = _parse_hmac()
+    config.set("hmac_keys", hmacs)
+    config.set("hmac_skip_check", check_hmac)
+
+    app = mode.load()
     http_server = wsgi.WSGIServer((os.getenv("HOST", ""), port), app)
-    app.port = port
 
     def die(*args, **kwargs):
         LOG.info("Stopping netmet %s" % os.getenv("APP"))

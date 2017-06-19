@@ -13,6 +13,7 @@ import requests
 
 from netmet.utils import ping
 from netmet.utils import pusher
+from netmet.utils import secure
 
 LOG = logging.getLogger(__name__)
 
@@ -26,7 +27,8 @@ class Collector(object):
         self.pusher = None
         if netmet_server:
             netmet_server = netmet_server.rstrip("/")
-            self.pusher = pusher.Pusher("%s/api/v1/metrics" % netmet_server)
+            self.pusher = pusher.Pusher("%s/api/v1/metrics" % netmet_server,
+                                        extra_headers=secure.gen_hmac_headers)
 
         self.lock = threading.Lock()
         self.queue = collections.deque()

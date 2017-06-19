@@ -10,6 +10,7 @@ import jsonschema
 
 from netmet.client import collector
 from netmet.client import conf
+from netmet import config
 from netmet.utils import status
 
 
@@ -265,7 +266,7 @@ def set_config_v2():
 @APP.route("/api/v1/unregister", methods=['POST'])
 def unregister():
     """Stops collector system."""
-    conf.restore_url_clear(APP.port)
+    conf.restore_url_clear(config.get("port"))
     _destroy_collector()
     return flask.jsonify({"message": "Netmet clinet is unregistered."}), 201
 
@@ -279,7 +280,6 @@ def die():
     _destroy_collector()
 
 
-def load(port):
-    conf.restore.async(port)
-
+def load():
+    conf.restore.async(config.get("hmac_keys"), config.get("port"))
     return APP

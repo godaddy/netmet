@@ -1,5 +1,6 @@
 # Copyright 2017: Godaddy Inc.
 
+import json
 import threading
 import time
 
@@ -47,13 +48,35 @@ class PusherTestCase(test.TestCase):
 
         p._send()
         calls = [
-            mock.call("http://some_url", json=range(0, 10), timeout=2),
-            mock.call("http://some_url", json=range(10, 20), timeout=2),
-            mock.call("http://some_url", json=range(10, 20), timeout=2),
-            mock.call("http://some_url", json=range(10, 20), timeout=2)
+            mock.call("http://some_url",
+                      data=json.dumps(range(0, 10)), headers={}, timeout=2),
+            mock.call("http://some_url",
+                      data=json.dumps(range(10, 20)), headers={}, timeout=2),
+            mock.call("http://some_url",
+                      data=json.dumps(range(10, 20)), headers={}, timeout=2),
+            mock.call("http://some_url",
+                      data=json.dumps(range(10, 20)), headers={}, timeout=2)
         ]
         mock_session.return_value.post.assert_has_calls(calls)
         self.assertEqual(4, mock_session.return_value.post.call_count)
+
+    @mock.patch("netmet.utils.pusher.requests.session")
+    def test_send_hmac(self, mock_session):
+        mock_session.return_value.post.return_value = (
+            mock.Mock(status_code=201))
+
+        p = pusher.Pusher("http://some_url", timeout=5,
+                          extra_headers=lambda x: {"a": "a"}, max_count=10)
+        p._death = threading.Event()
+        for i in xrange(11):
+            p.add(i)
+
+        p._send()
+
+        mock_session.return_value.post.assert_called_once_with(
+            "http://some_url",
+            data=json.dumps(range(0, 10)), headers={"a": "a"}, timeout=5)
+        self.assertEqual(1, mock_session.return_value.post.call_count)
 
     def test_send_periodically_stops(self):
         p = pusher.Pusher("")

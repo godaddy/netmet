@@ -7,6 +7,7 @@ import os
 import requests
 
 from netmet.utils import asyncer
+from netmet.utils import secure
 
 
 LOG = logging.getLogger(__name__)
@@ -17,25 +18,32 @@ _RESTORE_API = "%(server)s/api/v1/clients/%(host)s/%(port)s"
 
 
 @asyncer.async
-def restore(port):
+def restore(hmacs, port):
     url = restore_url_get(port)
     if not url:
         return
 
     restore._die.wait(0.25)   # note(boris-42): Let NetMet client start
     while not restore._die.is_set():
-        try:
-            r = requests.post(url)
-            if r.status_code == 404:
-                restore_url_clear(port)
-            if r.status_code in [200, 404]:
+        for hmac in hmacs:
+            try:
+                r = requests.post(
+                    url, headers=secure.gen_hmac_headers("", hmac))
+
+                if r.status_code == 403:
+                    continue
+                if r.status_code == 404:
+                    restore_url_clear(port)
+                if r.status_code in [200, 404]:
+                    return
+
+            except requests.exceptions.RequestException as e:
+                LOG.warning("Netmet Server API %s is not available %s"
+                            % (url, e))
+            except Exception:
+                LOG.exception("Something went wrong during the attempt "
+                              "to call netmet server to referesh config.")
                 return
-        except requests.exceptions.RequestException as e:
-            LOG.warning("Netmet Server API %s is not available %s" % (url, e))
-        except Exception:
-            LOG.exception("Something went wrong during the attempt "
-                          "to call netmet server to referesh config.")
-            return
 
         if url != restore_url_get(port):
             break

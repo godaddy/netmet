@@ -1,6 +1,7 @@
 # Copyright 2017: GoDaddy Inc.
 
 import collections
+import json
 import logging
 import threading
 
@@ -14,9 +15,10 @@ LOG = logging.getLogger(__name__)
 
 class Pusher(object):
 
-    def __init__(self, url, period=10, max_count=1000,
+    def __init__(self, url, extra_headers=None, period=10, max_count=1000,
                  dealey_between_requests=0.2, timeout=2):
         self.url = url
+        self.extra_headers = extra_headers
         self.period = period
         self.dealey_between_requests = dealey_between_requests
         self.timeout = timeout
@@ -34,9 +36,17 @@ class Pusher(object):
                 count += 1
                 body.append(self.objects.popleft())
 
+            error_status = None
             try:
-                r = self.session.post(self.url, json=body,
-                                      timeout=self.timeout)
+                data = json.dumps(body)
+                headers = {}
+                if isinstance(self.extra_headers, dict):
+                    headers = self.extra_headers
+                if callable(self.extra_headers):
+                    headers = self.extra_headers(data)
+
+                r = self.session.post(
+                    self.url, data=data, headers=headers, timeout=self.timeout)
                 if r.status_code == 201:
                     body = []
                     fails_in_row = 0
