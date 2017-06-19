@@ -11,6 +11,7 @@ import jsonschema
 from netmet.client import collector
 from netmet.client import conf
 from netmet import config
+from netmet.utils import secure
 from netmet.utils import status
 
 
@@ -65,6 +66,7 @@ def get_config():
 
 
 @APP.route("/api/v1/config", methods=['POST'])
+@secure.check_hmac_auth
 def set_config():
     """Recreates collector instance providing list of new hosts."""
     global _LOCK, _COLLECTOR, _CONFIG
@@ -145,6 +147,7 @@ def set_config():
 
 
 @APP.route("/api/v2/config", methods=['POST'])
+@secure.check_hmac_auth
 def set_config_v2():
     global _LOCK, _COLLECTOR, _CONFIG
 
@@ -264,6 +267,7 @@ def set_config_v2():
 
 
 @APP.route("/api/v1/unregister", methods=['POST'])
+@secure.check_hmac_auth
 def unregister():
     """Stops collector system."""
     conf.restore_url_clear(config.get("port"))

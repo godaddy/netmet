@@ -14,6 +14,7 @@ from netmet import exceptions
 from netmet.server import db
 from netmet.server import deployer
 from netmet.server import mesher
+from netmet.utils import secure
 from netmet.utils import status
 
 
@@ -138,6 +139,7 @@ def clients_list():
 
 @app.route("/api/v1/clients/<host>/<port>", methods=["POST"])
 @db_errors_handler
+@secure.check_hmac_auth
 def client_refresh(host, port):
     result = mesher.Mesher.get().refresh_client(host, int(port))
     key = "message" if result[0] else "error"
@@ -146,6 +148,7 @@ def client_refresh(host, port):
 
 @app.route("/api/v1/metrics", methods=["POST", "PUT"])
 @db_errors_handler
+@secure.check_hmac_auth
 def metrics_add():
     """Stores metrics to elastic."""
 
