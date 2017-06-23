@@ -3,11 +3,11 @@ Secure Netmet Server API
 
 Netmet Server supports basic auth for any potentially dangeours method:
 
-GET /api/v2/config
-POST /api/v2/config
-POST /api/v1/events/<event_id>
-DELETE /api/v1/events/<event_id>
-POST /api/v1/events/<event_id>/_stop
+    GET /api/v2/config
+    POST /api/v2/config
+    POST /api/v1/events/<event_id>
+    DELETE /api/v1/events/<event_id>
+    POST /api/v1/events/<event_id>/_stop
 
 
 To Enable Basic Auth
