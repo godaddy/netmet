@@ -69,7 +69,7 @@ class Pusher(object):
 
             self._death.wait(self.dealey_between_requests)
 
-    def _send_peridoically(self):
+    def _send_periodically(self):
         while not self._death.is_set():
             try:
                 if monotonic.monotonic() - self._started_at > self.period:
@@ -91,7 +91,7 @@ class Pusher(object):
             self._started_at = monotonic.monotonic()
             self._worker = futurist.ThreadPoolExecutor()
             self._death = threading.Event()
-            self._worker.submit(self._send_peridoically)
+            self._worker.submit(self._send_periodically)
 
     def stop(self):
         if self._worker:

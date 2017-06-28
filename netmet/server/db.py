@@ -154,11 +154,11 @@ class DB(worker.LonelyWorker):
         cls._self._ensure_elastic()
         cls._self._ensure_schema()
         cls._self._rollover_data()
-        cls._self._initied = True
+        cls._self._inited = True
 
     def _job(self):
         try:
-            if getattr(self, "_initied", False):
+            if getattr(self, "_inited", False):
                 self._rollover_data()
         except Exception:
             LOG.exception("DB update failed")
@@ -417,7 +417,7 @@ class DB(worker.LonelyWorker):
         self._event_upgrade_metrics(id_, "remove")
         return self._event_update(id_, {"status": "deleted"})
 
-    def lock_accuire(self, name, ttl):
+    def lock_acquire(self, name, ttl):
         # release old one if ttl hit
         data = {
             "updated_at": datetime.datetime.now().isoformat(),

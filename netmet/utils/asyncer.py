@@ -7,16 +7,16 @@ _THREADS = []
 _DIE = threading.Event()
 
 
-def async(func):
+def asyncme(func):
     func._die = _DIE
 
-    def async(*args, **kwargs):
+    def async_call(*args, **kwargs):
         thread = threading.Thread(target=func, args=args, kwargs=kwargs)
         thread.daemon = True
         thread.start()
         _THREADS.append(thread)
 
-    func.async = async
+    func.async_call = async_call
     return func
 
 

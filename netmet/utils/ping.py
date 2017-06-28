@@ -44,8 +44,8 @@ class Ping(object):
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_RAW,
                                       socket.getprotobyname("icmp"))
-        except socket.error, (errno, msg):
-            if errno == 1:
+        except socket.error as e:
+            if e.errno == 1:
                 self.ret_code = EXIT_STATUS.ERROR_ROOT_REQUIRED
             else:
                 self.ret_code = EXIT_STATUS.ERROR_CANT_OPEN_SOCKET

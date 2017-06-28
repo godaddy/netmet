@@ -87,7 +87,7 @@ class DBTestCase(test.TestCase):
             "hits": {"hits": [{"_source": {"a": 1}}, {"_source": {"a": 2}}]}
         }
         db.DB.create("a", ["b"])
-        self.assertEqual(db.get().clients_get(),  [{"a": 1}, {"a": 2}])
+        self.assertEqual(db.get().clients_get(), [{"a": 1}, {"a": 2}])
 
     @mock.patch("netmet.server.db.elasticsearch.Elasticsearch")
     def test_clients_set(self, mock_elastic):

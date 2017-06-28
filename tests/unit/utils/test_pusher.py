@@ -82,7 +82,7 @@ class PusherTestCase(test.TestCase):
         p = pusher.Pusher("")
         p._death = threading.Event()
         p._death.set()
-        p._send_peridoically()
+        p._send_periodically()
 
     @mock.patch("netmet.utils.pusher.Pusher._send")
     def test_send_periodically(self, mock_send):
@@ -97,12 +97,12 @@ class PusherTestCase(test.TestCase):
         e = futurist.ThreadPoolExecutor()
         e.submit(stop)
 
-        p._send_peridoically()
+        p._send_periodically()
         self.assertEqual(5, mock_send.call_count)
         e.shutdown()
 
-    @mock.patch("netmet.utils.pusher.Pusher._send_peridoically")
-    def test_start_and_stop(self, mock_send_peridoically):
+    @mock.patch("netmet.utils.pusher.Pusher._send_periodically")
+    def test_start_and_stop(self, mock_send_periodically):
         p = pusher.Pusher("", period=0.1)
         p.start()
         started_at = p._started_at
@@ -111,7 +111,7 @@ class PusherTestCase(test.TestCase):
         self.assertEqual(p._started_at, started_at)
         self.assertIs(p._worker, worker)
         time.sleep(0.1)
-        self.assertEqual(1, mock_send_peridoically.call_count)
-        mock_send_peridoically.assert_called_once_with()
+        self.assertEqual(1, mock_send_periodically.call_count)
+        mock_send_periodically.assert_called_once_with()
         p.stop()
         p.stop()   # test that stop() can be called 2 times

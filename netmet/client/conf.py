@@ -17,13 +17,12 @@ _RUNTIME_CONF_FILE = _RUNTIME_CONF_DIR + "restore_api_%s"
 _RESTORE_API = "%(server)s/api/v1/clients/%(host)s/%(port)s"
 
 
-@asyncer.async
+@asyncer.asyncme
 def restore(hmacs, port):
     url = restore_url_get(port)
     if not url:
         return
 
-    restore._die.wait(0.25)   # note(boris-42): Let NetMet client start
     while not restore._die.is_set():
         for hmac in hmacs:
             try:
@@ -67,8 +66,8 @@ def restore_url_get(port):
 
 
 def restore_url_set(netmet_server, host, port):
-    LOG.info("Setting new netmet restore_conf_url % s"
-             % _RUNTIME_CONF_FILE % port)
+    LOG.info("Setting new netmet restore_conf_url %s"
+             % (_RUNTIME_CONF_FILE % port))
     try:
         if not os.path.exists(_RUNTIME_CONF_DIR):
             LOG.info("Creating directory: %s" % _RUNTIME_CONF_DIR)
@@ -82,7 +81,7 @@ def restore_url_set(netmet_server, host, port):
                 json.dump({"refresh_conf_url": None}, f)
 
     except Exception:
-        LOG.exception("Failed to store runntime info refresh_conf_url")
+        LOG.exception("Failed to store runtime info refresh_conf_url")
 
 
 def restore_url_clear(port):

@@ -25,7 +25,7 @@ class LonelyWorker(object):
                 cls._self = self
                 self._worker = futurist.ThreadPoolExecutor()
                 self._death = threading.Event()
-                self._worker.submit(cls._self._periodic_workder)
+                self._worker.submit(cls._self._periodic_worker)
                 self._force_update = False
                 self._callback_after_job = callback_after_job or (lambda: True)
 
@@ -47,7 +47,7 @@ class LonelyWorker(object):
                     cls._self._worker.shutdown()
                     cls._self = None
 
-    def _periodic_workder(self):
+    def _periodic_worker(self):
         while not self._death.is_set():
             try:
                 if self._job():

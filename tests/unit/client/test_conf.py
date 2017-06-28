@@ -25,7 +25,6 @@ class ConfTestCase(test.TestCase):
         ]
         mock_post.side_effect = Exception
         conf.restore(["hmac"], 100)
-        mock_wait.assert_called_once_with(0.25)
 
     @mock.patch("netmet.client.conf.LOG.warning")
     @mock.patch("netmet.client.conf.secure.gen_hmac_headers")
@@ -56,8 +55,7 @@ class ConfTestCase(test.TestCase):
             mock.call("aa", headers="headers"),
             mock.call("aa", headers="headers")
         ])
-        mock_wait.assert_has_calls(
-            [mock.call(0.25), mock.call(1), mock.call(1)])
+        mock_wait.assert_has_calls([mock.call(1), mock.call(1)])
 
     @mock.patch("netmet.client.conf.os.remove")
     @mock.patch("netmet.client.conf.requests.post")
@@ -71,7 +69,6 @@ class ConfTestCase(test.TestCase):
         mock_post.side_effect = [mock.Mock(status_code=404)]
         conf.restore(["hmac"], 50)
         mock_remove.assert_called_once_with(conf._RUNTIME_CONF_FILE % 50)
-        mock_wait.assert_called_once_with(0.25)
 
     @mock.patch("netmet.client.conf.open", create=True)
     def test_restore_url_get(self, mock_open):

@@ -13,15 +13,15 @@ class Glock(object):
 
     def __init__(self, name, ttl=10):
         self.name = name
-        self.accuired = False
+        self.acquired = False
         self.ttl = 10
 
     def __enter__(self):
-        if self.accuired:
+        if self.acquired:
             raise exceptions.GlobalLockException("Lock already in use %s"
                                                  % self.name)
-        if db.get().lock_accuire(self.name, self.ttl):
-            self.accuired = True
+        if db.get().lock_acquire(self.name, self.ttl):
+            self.acquired = True
         else:
             raise exceptions.GlobalLockException("Can't lock %s" % self.name)
 
@@ -30,4 +30,4 @@ class Glock(object):
             logging.warning("Can't release lock %(name)s."
                             % {"name": self.name})
 
-        self.accuired = False
+        self.acquired = False

@@ -12,9 +12,9 @@ class AsyncerTestCase(test.TestCase):
         asyncer.die()
         super(AsyncerTestCase, self).tearDown()
 
-    def test_async_regular_call(self):
+    def test_asyncer_regular_call(self):
 
-        @asyncer.async
+        @asyncer.asyncme
         def method(a, b=2):
             return a + b
 
@@ -22,16 +22,16 @@ class AsyncerTestCase(test.TestCase):
         self.assertEqual(7, method(3, b=4))
         self.assertEqual([], asyncer._THREADS)
 
-    def test_async_async_call(self):
+    def test_asyncer_async_call(self):
         s = []
 
-        @asyncer.async
+        @asyncer.asyncme
         def method(a):
             time.sleep(a)
             s.append(a)
 
-        method.async(0.2)
-        method.async(0.1)
+        method.async_call(0.2)
+        method.async_call(0.1)
 
         self.assertEqual(2, len(asyncer._THREADS))
         asyncer.die()

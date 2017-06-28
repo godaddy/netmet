@@ -15,10 +15,10 @@ class EslockTestCase(test.TestCase):
         g = eslock.Glock("some_name")
         self.assertEqual("some_name", g.name)
         self.assertEqual(10, g.ttl)
-        self.assertFalse(g.accuired)
+        self.assertFalse(g.acquired)
 
     @mock.patch("netmet.server.utils.eslock.db.get")
-    def test_lock_accuired(self, mock_get):
+    def test_lock_acquired(self, mock_get):
         db_ = db.DB()
         db_.elastic = mock.MagicMock()
         db_.own_url = "upsis"
@@ -26,10 +26,10 @@ class EslockTestCase(test.TestCase):
 
         g = eslock.Glock("some_name")
         with g:
-            self.assertTrue(g.accuired)
+            self.assertTrue(g.acquired)
             self.assertRaises(exceptions.GlobalLockException, g.__enter__)
 
-        self.assertFalse(g.accuired)
+        self.assertFalse(g.acquired)
 
     @mock.patch("netmet.server.utils.eslock.db.get")
     def test_lock_failed(self, mock_get):

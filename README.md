@@ -119,7 +119,7 @@ To configure the Netmet use POST /api/v2/config
 
     curl -H "Content-Type: application/json" -X POST -d '@config.json' ${NETMET_SERVER_URL}/api/v2/config
 
-## Runnig Tests
+## Running Tests
 
 Running test is very easy.
 

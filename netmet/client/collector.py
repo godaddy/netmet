@@ -55,7 +55,7 @@ class Collector(object):
                     "timestamp": result["timestamp"],
                     "latency": result["rtt"],
                     "packet_size": result["packet_size"],
-                    "lost":  int(bool(result["ret_code"])),
+                    "lost": int(bool(result["ret_code"])),
                     "transmitted": int(not bool(result["ret_code"])),
                     "ret_code": result["ret_code"]
                 }
@@ -103,7 +103,7 @@ class Collector(object):
                 metric.update({
                     "latency": (monotonic.monotonic() - started_at) * 1000,
                     "packet_size": len(r.content),
-                    "lost":  int(r.status_code != 200),
+                    "lost": int(r.status_code != 200),
                     "transmitted": int(r.status_code == 200),
                     "ret_code": r.status_code
                 })

@@ -134,7 +134,7 @@ def set_config_v2():
                                 "east-west": {
                                     "type": "object",
                                     "properties": {
-                                        "dest":  {
+                                        "dest": {
                                             "$ref": "#/definitions/client"
                                         },
                                         "protocol": {"enum": ["http", "icmp"]},
@@ -206,5 +206,5 @@ def die():
 
 
 def load():
-    conf.restore.async(config.get("hmac_keys"), config.get("port"))
+    conf.restore.async_call(config.get("hmac_keys"), config.get("port"))
     return APP

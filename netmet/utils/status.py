@@ -41,7 +41,7 @@ class Stats(object):
         return {
             "stats": copy.deepcopy(self.stats),
             "started_at": self.started_at.isoformat(),
-            "runtime":  (datetime.datetime.now() - self.started_at).seconds
+            "runtime": (datetime.datetime.now() - self.started_at).seconds
         }
 
 
