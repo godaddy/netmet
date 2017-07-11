@@ -1,0 +1,16 @@
+---
+
+  - name: Logging in to netmet_registry
+    docker_login:
+      registry: "{{registry_url}}"
+      username: "{{registry_user}}"
+      password: "{{registry_pwd}}"
+      reauthorize: yes
+
+  - name: Pull Netmet Docker image
+    docker_image:
+      force: yes
+      state: present
+      name: "{{registry_url}}/{{netmet_img_name}}"
+      tag: "{{netmet_img_tag}}"
+

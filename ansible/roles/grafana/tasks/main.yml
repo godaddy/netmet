@@ -1,0 +1,56 @@
+---
+
+  - name: Pull NGINX docker image
+    docker_image:
+      name: nginx
+      tag: alpine
+    become: true
+
+  - name: Create nginx conf directory
+    file:
+      path: nginx_conf
+      state: directory
+      mode: 0755
+
+  - name: Generate and copy nginx netmet.conf template
+    template:
+      src: grafana.conf.j2
+      dest: "{{ ansible_env.HOME }}/nginx_conf/grafana.conf"
+
+  - name: Run Nginx container
+    docker_container:
+      name: nginx
+      image: nginx:alpine
+      network_mode: host
+      recreate: yes
+      restart_policy: unless-stopped
+      volumes:
+        - "{{ ansible_env.HOME }}/nginx_conf/:/etc/nginx/conf.d:rw"
+
+  - name: Create grafana data directory
+    file:
+      path: "{{ ansible_env.HOME }}/grafana_data"
+      state: directory
+      mode: 0755
+
+  - name: Pull Grafana image
+    become: yes
+    docker_image:
+      force: yes
+      state: present
+      name: "{{grafana_image}}"
+      tag: "{{grafana_tag}}"
+
+  - name: Run Grafana container
+    become: yes
+    docker_container:
+      name: grafana
+      image: "{{grafana_image}}"
+      recreate: yes
+      restart_policy: unless-stopped
+      network_mode: host
+      volumes:
+        - "{{ ansible_env.HOME }}/grafana_data:/var/lib/grafana:rw"
+      env:
+        GF_SECURITY_ADMIN_PASSWORD: "{{grafana_pwd}}"
+        GF_INSTALL_PLUGINS: "grafana-clock-panel,grafana-simple-json-datasource,savantly-heatmap-panel,mtanda-histogram-panel,vonage-status-panel"

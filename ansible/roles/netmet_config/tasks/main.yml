@@ -1,0 +1,23 @@
+---
+  - name: Generate netmet server config
+    vars:
+      netmet_clients: "{{groups['netmet_clients']}}"
+      netmet_external: "{{groups['netmet_external']}}"
+      netmet_port: "{{netmet_client_port}}"
+    template:
+      src: config.json.j2
+      dest: "{{ ansible_env.HOME }}/config.json"
+    register: netmet_server_conf
+
+  - name: Slurp config file
+    slurp:
+      src: "{{ ansible_env.HOME }}/config.json"
+    register: configfile
+
+  - name: Refresh Netmet server configurtion
+    uri:
+      url: "http://{{basic_auth}}@{{groups['nginx'][0]}}/api/v2/config"
+      method: POST
+      body: "{{ configfile['content'] | b64decode }}"
+      status_code: 201
+      body_format: json

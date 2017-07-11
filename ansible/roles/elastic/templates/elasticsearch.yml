@@ -1,0 +1,7 @@
+cluster.name: oss
+node.name: node-{{host}}
+node.attr.host: {{host}}
+discovery.zen.ping.unicast.hosts: [{% for host in elastic_hosts %} "{{hostvars[host].inventory_hostname}}", {% endfor %}]
+discovery.zen.minimum_master_nodes: 2
+network.host: {{host}}
+xpack.security.enabled: false

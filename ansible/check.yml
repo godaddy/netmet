@@ -1,0 +1,24 @@
+---
+
+- hosts: controller
+  tasks:
+    - name: "Check netmet servers"
+      uri:
+        url: "http://{{hostvars[item].inventory_hostname}}:{{netmet_server_port}}/status"
+        method: GET
+        status_code: 200
+      with_items: "{{groups['netmet_servers']}}"
+
+    - name: "Check netmet clients"
+      uri:
+        url: "http://{{hostvars[item].inventory_hostname}}:{{netmet_client_port}}/status"
+        method: GET
+        status_code: 200
+      with_items: "{{groups['netmet_clients']}}"
+
+    - name: "Check elastics"
+      uri:
+        url: "http://{{hostvars[item].inventory_hostname}}:9200"
+        method: GET
+        status_code: 200
+      with_items: "{{groups['elastic'] + groups['elastic_deploy']}}"

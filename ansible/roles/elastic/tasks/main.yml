@@ -1,0 +1,84 @@
+---
+
+  - name: Update pam limits
+    become: yes
+    pam_limits:
+      domain: "{{ ansible_user }}"
+      limit_type: "{{ item['limit_type'] }}"
+      limit_item: "{{ item['limit_item'] }}"
+      value: "{{ item['limit_value'] }}"
+    with_items:
+      - limit_type: soft
+        limit_item: nofile
+        limit_value: 65536
+      - limit_type: hard
+        limit_item: nofile
+        limit_value: 65536
+      - limit_type: soft
+        limit_item: memlock
+        limit_value: unlimited
+      - limit_type: hard
+        limit_item: memlock
+        limit_value: unlimited
+
+  - name: Set vm.max_map_count to 262144
+    become: yes
+    sysctl:
+      name: vm.max_map_count
+      value: 262144
+      state: present
+      reload: yes
+
+  - name: Create elastic conf directory
+    file:
+      path: elastic_conf/scripts
+      state: directory
+      mode: 0755
+
+  - name: Create elastic data directory
+    file:
+      path: elastic_data
+      state: directory
+      mode: 0755
+
+  - name: Generate jvm.options
+    vars:
+      heap_size: 8g
+    template:
+      src: jvm.options
+      dest: "{{ ansible_env.HOME }}/elastic_conf/jvm.options"
+    register: jvm_conf
+
+  - name: Generate log4j2.properties
+    template:
+      src: log4j2.properties
+      dest: "{{ ansible_env.HOME }}/elastic_conf/log4j2.properties"
+    register: log4j2
+
+  - name: Generate elasticsearch.yml
+    vars:
+      host: "{{inventory_hostname}}"
+      elastic_hosts: "{{groups['elastic'] + groups['elastic_deploy']}}"
+    template:
+      src: elasticsearch.yml
+      dest: "{{ ansible_env.HOME }}/elastic_conf/elasticsearch.yml"
+    register: elastic
+
+  - name: Pull Elastic docker image
+    become: yes
+    docker_image:
+      name: docker.elastic.co/elasticsearch/elasticsearch
+      tag: 5.2.2
+
+  - name: Run Elastic
+    become: yes
+    docker_container:
+      name: elasticsearch
+      image: docker.elastic.co/elasticsearch/elasticsearch:5.2.2
+      network_mode: host
+      state: started
+      recreate: yes
+      restart_policy: unless-stopped
+      volumes:
+        - "{{ ansible_env.HOME }}/elastic_conf:/usr/share/elasticsearch/config:rw"
+        - "{{ ansible_env.HOME }}/elastic_data:/usr/share/elasticsearch/data:rw"

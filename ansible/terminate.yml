@@ -1,0 +1,17 @@
+---
+
+- hosts: netmet_servers
+  tasks:
+    - name: "Removing netmet_server containers."
+      become: true
+      docker_container:
+        name: netmet_server
+        state: absent
+
+- hosts: netmet_clients
+  tasks:
+    - name: "Removing netmet_server containers."
+      become: true
+      docker_container:
+        name: netmet_client
+        state: absent

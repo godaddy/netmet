@@ -1,0 +1,18 @@
+---
+ansible_user: foo
+registry_url: hub.docker.com
+reigstry_pwd: <not needed by default>
+registry_user: <not needed by default>
+
+netmet_client_port: 80
+netmet_server_port: 80
+
+netmet_img_name: foo
+netmet_img_tag: foo
+grafana_image: grafana/grafana
+grafana_tag: 4.2.0
+
+grafana_pwd: "somepassword"
+server_hmacs: "anyradnomstrong"
+client_hmacs: "anyradnomstrong"
+basic_auth: "admin:password"

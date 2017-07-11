@@ -1,0 +1,31 @@
+---
+
+  - name: Pull NGINX docker image
+    docker_image:
+      name: nginx
+      tag: alpine
+    become: true
+
+  - name: Create nginx conf directory
+    file:
+      path: nginx_conf
+      state: directory
+      mode: 0755
+
+  - name: Generate and copy nginx netmet.conf template
+    vars:
+      netmet_servers: "{{groups['netmet_servers']}}"
+      netmet_port: "{{netmet_server_port}}"
+    template:
+      src: netmet.conf.j2
+      dest: "{{ ansible_env.HOME }}/nginx_conf/netmet.conf"
+
+  - name: Run Nginx container
+    docker_container:
+      name: nginx
+      image: nginx:alpine
+      network_mode: host
+      recreate: yes
+      restart_policy: unless-stopped
+      volumes:
+        - "{{ ansible_env.HOME }}/nginx_conf/:/etc/nginx/conf.d:rw"
