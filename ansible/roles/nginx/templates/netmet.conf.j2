@@ -1,0 +1,15 @@
+upstream netmet_server {
+    {% for host in netmet_servers %}
+        server {{hostvars[host].inventory_hostname}}:{{netmet_port}} max_fails=1 fail_timeout=30;
+    {% endfor %}
+}
+
+server {
+    listen       80;
+    server_name  localhost;
+
+    location / {
+        proxy_pass http://netmet_server;
+    }
+
+}

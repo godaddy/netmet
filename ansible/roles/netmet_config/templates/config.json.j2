@@ -1,0 +1,32 @@
+{
+    "deployment": {
+         "static": {
+            "clients": [
+                {% for host in netmet_clients %}{
+                    "host": "{{hostvars[host].inventory_hostname}}",
+                    "ip": "{{hostvars[host].ip}}",
+                    "port": {{netmet_port}},
+                    "az": "{{hostvars[host].az}}",
+                    "dc": "{{hostvars[host].dc}}"
+                }{% if not loop.last %},{%endif%}
+
+                {% endfor %}
+
+            ]
+        }
+    },
+    "external": [
+        {% for host in netmet_external %}{
+            "dest": "{{hostvars[host].dest}}",
+            "protocol": "{{hostvars[host].protocol}}",
+            "period": {{hostvars[host].period}},
+            "timeout": {{hostvars[host].timeout}}
+        }{% if not loop.last %},{%endif%}
+
+        {% endfor %}
+
+    ],
+    "mesher": {
+        "full_mesh": {}
+    }
+}

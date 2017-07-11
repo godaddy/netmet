@@ -1,0 +1,50 @@
+---
+
+  - name: Install Docker
+    yum: name={{ item }} state=present
+    with_items:
+      - docker
+      - python-pip
+      - python-virtualenv
+    become: true
+
+  - name: Create Docker Group
+    group:
+      name: docker
+      state: present
+    become: true
+
+  - name: Add $USER to docker group
+    user:
+      name: "{{ ansible_user }}"
+      groups: docker
+      append: yes
+    become: true
+    register: add_user_to_docker_group
+
+  - name: Copy Docker daemon conf
+    become: true
+    template:
+      src: docker.json.j2
+      dest: /etc/docker/daemon.json
+
+  - name: Restart Docker service and enable it on start
+    systemd:
+      state: restarted
+      name: docker
+      enabled: yes
+    become: true
+    when: add_user_to_docker_group.changed
+
+  - name: Ensure Docker service runs
+    systemd:
+      state: started
+      name: docker
+      enabled: yes
+    become: true
+
+  - name: Add docker-py (required by ansible docker plugin)
+    pip:
+      name: docker-py
+      version: 1.10.6
+    become: true

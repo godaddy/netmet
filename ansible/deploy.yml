@@ -1,0 +1,93 @@
+---
+
+- hosts: controller
+  roles:
+    - common
+    - controller
+
+- hosts: nginx
+  roles:
+    - common
+    - nginx
+
+- hosts: elastic_deploy
+  serial: 1
+  roles:
+    - common
+    - elastic
+
+- hosts: grafana
+  roles:
+    - common
+    - grafana
+
+- hosts: netmet
+  roles:
+    - common
+    - netmet
+  vars_prompt:
+    - name: "registry_pwd"
+      prompt: "Docker registry password"
+      private: yes
+
+- hosts: netmet_servers
+  serial: 1
+  tasks:
+    - name: Run Netmet Server Container
+      become: yes
+      docker_container:
+        name: netmet_server
+        image: "{{registry_url}}/{{netmet_img_name}}:{{netmet_img_tag}}"
+        recreate: yes
+        restart_policy: unless-stopped
+        network_mode: host
+        entrypoint: "python netmet/run.py"
+        env:
+          APP: server
+          PORT: "{{netmet_server_port}}"
+          NETMET_SERVER_URL: "http://{{groups['nginx'][0]}}"
+          NETMET_OWN_URL: "http://{{inventory_hostname}}:{{netmet_server_port}}"
+          ELASTIC: "{{ groups['elastic']|join(',') }}"
+          NETMET_AUTH: "{{basic_auth}}"
+          NETMET_HMACS: "{{server_hmacs}}"
+
+    - name: Wait for netmet server to start
+      uri:
+        url: "http://{{inventory_hostname}}:{{netmet_server_port}}"
+      register: result
+      until: result.status == 200
+      retries: 60
+      delay: 0.25
+
+- hosts: netmet_clients
+  serial: 1
+  tasks:
+    - name: Create netmet run conf directory
+      file:
+        path: netmet_client
+        state: directory
+        mode: 0755
+
+    - name: Run Netmet client container
+      become: yes
+      docker_container:
+        name: netmet_client
+        image: "{{registry_url}}/{{netmet_img_name}}:{{netmet_img_tag}}"
+        recreate: yes
+        restart_policy: unless-stopped
+        network_mode: host
+        entrypoint: "python netmet/run.py"
+        env:
+          APP: client
+          PORT: "{{netmet_client_port}}"
+          NETMET_HMACS: "{{client_hmacs}}"
+        volumes:
+          - "{{ ansible_env.HOME }}/netmet_client:/var/run/netmet:rw"
+
+    - name: Wait for Netmet client to start
+      uri:
+        url: "http://{{inventory_hostname}}:{{netmet_client_port}}"
+      register: result
+      until: result.status == 200
+      retries: 60
+      delay: 0.25

@@ -1,0 +1,7 @@
+---
+
+- include: check.yml
+
+- hosts: controller
+  roles:
+    - netmet_config
