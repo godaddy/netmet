@@ -27,7 +27,7 @@ We use standard GitHub process with Issues & PR.
 
 ## Architecture
 
-![](/media/netmet-architecture.png | width=600)
+![Netmet Architecture](media/netmet-architecture.png)
 
 The client-server architecture of NetMet was designed with a clear separation
 of concerns in mind:
@@ -50,7 +50,7 @@ Run all netmet clients and servers:
 
 To collect all metrics needed to monitor network of Data Centers use next schema:
 
-![](/media/netmet-deployment.png | width=600)
+![Netmet Deployment](media/netmet-deployment.png)
 
 - Run few instances of Netmet servers in different regions
 - Run 1 instance of Netmet client per 1 server
@@ -60,7 +60,7 @@ To collect all metrics needed to monitor network of Data Centers use next schema
 
 To avoid Netmet downtime use next schema:
 
-![](/media/netmet-deployment-logical.png | width=600)
+![Netmet Placement](media/netmet-deployment-logical.png)
 
 - Netmet servers should be run under Nginx/HAproxy/Lbaas (for now)
 - Netmet server may use multiple Elasticsearch addresses (no need in HA)
@@ -89,7 +89,7 @@ update installation (remove/add clients), geneate new client configurations
 and update clients
 
 
-![](/media/netmet-deployment-update.png | width=600)
+![Updates & Upgrades](media/netmet-deployment-update.png)
 
 To configure the Netmet use POST /api/v2/config
 
